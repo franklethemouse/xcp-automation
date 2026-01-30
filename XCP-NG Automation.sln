@@ -1,0 +1,29 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Server (Linux)", "Server (Linux)", "{28C3F46A-795E-EBC6-EA8A-F94D94DDF293}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XcpManagement", "Server (Linux)\XcpManagement\XcpManagement.csproj", "{2DD2FAB2-0B73-B178-F0F7-CADC0FD7E453}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2DD2FAB2-0B73-B178-F0F7-CADC0FD7E453}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2DD2FAB2-0B73-B178-F0F7-CADC0FD7E453}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2DD2FAB2-0B73-B178-F0F7-CADC0FD7E453}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2DD2FAB2-0B73-B178-F0F7-CADC0FD7E453}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{2DD2FAB2-0B73-B178-F0F7-CADC0FD7E453} = {28C3F46A-795E-EBC6-EA8A-F94D94DDF293}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F920F75A-0FFA-4D73-A45A-FB85035DF5AD}
+	EndGlobalSection
+EndGlobal
