@@ -1,0 +1,95 @@
+name: Deploy to XCP-ng Server
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Restore dependencies
+        run: dotnet restore "Server (Linux)/XcpManagement/XcpManagement.csproj"
+      
+      - name: Build
+        run: dotnet build "Server (Linux)/XcpManagement/XcpManagement.csproj" --configuration Release --no-restore
+      
+      - name: Publish
+        run: |
+          dotnet publish "Server (Linux)/XcpManagement/XcpManagement.csproj" \
+            -c Release \
+            -r linux-x64 \
+            --self-contained false \
+            -o ./publish
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcp-management-${{ github.sha }}
+          path: ./publish/
+          retention-days: 7
+
+  deploy:
+    name: Deploy to Server
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: xcp-management-${{ github.sha }}
+          path: ./publish
+      
+      - name: Create deployment package
+        run: |
+          cd publish
+          tar -czf ../xcp-management.tar.gz .
+          cd ..
+      
+      - name: Copy to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "xcp-management.tar.gz"
+          target: "/tmp/"
+      
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /tmp
+            rm -rf xcp-management-deploy
+            mkdir -p xcp-management-deploy
+            tar -xzf xcp-management.tar.gz -C xcp-management-deploy
+            sudo /opt/xcp-management/deploy.sh --source /tmp/xcp-management-deploy
+            rm -rf xcp-management-deploy xcp-management.tar.gz
+      
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            sudo systemctl is-active xcp-management
+            curl -f http://localhost:5000/health || exit 1
