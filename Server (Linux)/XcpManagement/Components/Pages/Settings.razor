@@ -1,5 +1,4 @@
 @page "/settings"
-@rendermode InteractiveServer
 @inject IVmCacheService VmCache
 @inject IMessageService MessageService
 
@@ -8,7 +7,7 @@
 <Card Title="Cache Refresh Settings" Style="max-width: 600px;">
     <Form Model="settings" LabelColSpan="8" WrapperColSpan="16">
         <FormItem Label="Refresh Interval">
-            <InputNumber @bind-Value="settings.RefreshIntervalSeconds" Min="30" Max="600" />
+            <AntDesign.InputNumber @bind-Value="settings.RefreshIntervalSeconds" Min="30" Max="600" />
             <Text Type="secondary"> seconds (30-600)</Text>
         </FormItem>
         <FormItem Label="Last Refresh">

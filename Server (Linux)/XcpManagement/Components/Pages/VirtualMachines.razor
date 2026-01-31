@@ -1,5 +1,4 @@
 @page "/vms"
-@rendermode InteractiveServer
 @inject IVmCacheService VmCache
 @inject IXenApiService XenApi
 @inject IMessageService MessageService
@@ -13,18 +12,18 @@
 </PageHeader>
 
 <Table TItem="VirtualMachine" DataSource="@vms" Loading="@loading">
-    <Column Title="Name" @bind-Field="@context.NameLabel" />
-    <Column Title="Host" @bind-Field="@context.HostName" />
-    <Column Title="Power State" @bind-Field="@context.PowerState">
+    <PropertyColumn Property="c => c.NameLabel" Title="Name" />
+    <PropertyColumn Property="c => c.HostName" Title="Host" />
+    <PropertyColumn Property="c => c.PowerState" Title="Power State">
         <Tag Color="@GetPowerStateColor(context.PowerState)">
             @context.PowerState
         </Tag>
-    </Column>
-    <Column Title="vCPUs" @bind-Field="@context.VcpusAtStartup" />
-    <Column Title="Memory">
+    </PropertyColumn>
+    <PropertyColumn Property="c => c.VcpusAtStartup" Title="vCPUs" />
+    <PropertyColumn Property="c => c.MemoryDynamic" Title="Memory">
         @($"{context.MemoryDynamic / (1024.0 * 1024 * 1024):F1} GB")
-    </Column>
-    <Column Title="IP Address" @bind-Field="@context.IpAddress" />
+    </PropertyColumn>
+    <PropertyColumn Property="c => c.IpAddress" Title="IP Address" />
     <ActionColumn Title="Actions">
         <Space>
             @if (context.PowerState == VmPowerState.Halted)

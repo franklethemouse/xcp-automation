@@ -1,5 +1,4 @@
 @page "/hosts"
-@rendermode InteractiveServer
 @inject IXcpHostService HostService
 @inject IMessageService MessageService
 
@@ -12,16 +11,16 @@
 </PageHeader>
 
 <Table TItem="Data.XcpHost" DataSource="@hosts" Loading="@loading">
-    <Column Title="Host Name" @bind-Field="@context.HostName" />
-    <Column Title="URL" @bind-Field="@context.HostUrl" />
-    <Column Title="Status" @bind-Field="@context.Active">
+    <PropertyColumn Property="c => c.HostName" Title="Host Name" />
+    <PropertyColumn Property="c => c.HostUrl" Title="URL" />
+    <PropertyColumn Property="c => c.Active" Title="Status">
         <Tag Color="@(context.Active ? "green" : "red")">
             @(context.Active ? "Active" : "Inactive")
         </Tag>
-    </Column>
-    <Column Title="Last Connected" @bind-Field="@context.LastConnected">
+    </PropertyColumn>
+    <PropertyColumn Property="c => c.LastConnected" Title="Last Connected">
         @(context.LastConnected?.ToString("yyyy-MM-dd HH:mm") ?? "Never")
-    </Column>
+    </PropertyColumn>
     <ActionColumn Title="Actions">
         <Space>
             <SpaceItem><Button Size="small" OnClick="() => TestConnection(context)">Test</Button></SpaceItem>

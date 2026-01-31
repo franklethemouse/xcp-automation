@@ -1,5 +1,4 @@
 @page "/"
-@rendermode InteractiveServer
 @inject IVmCacheService VmCache
 @inject IXcpHostService HostService
 
@@ -38,17 +37,17 @@
 
 <Card Title="Virtual Machines by Host" Style="margin-top: 24px;">
     <Table TItem="HostSummary" DataSource="@hostSummaries" Loading="@loading">
-        <Column Title="Host" @bind-Field="@context.HostName" />
-        <Column Title="Total VMs" @bind-Field="@context.TotalVms" />
-        <Column Title="Running" @bind-Field="@context.RunningVms">
+        <PropertyColumn Property="c => c.HostName" Title="Host" />
+        <PropertyColumn Property="c => c.TotalVms" Title="Total VMs" />
+        <PropertyColumn Property="c => c.RunningVms" Title="Running">
             <Badge Status="success" Text="@context.RunningVms.ToString()" />
-        </Column>
-        <Column Title="Stopped" @bind-Field="@context.StoppedVms">
+        </PropertyColumn>
+        <PropertyColumn Property="c => c.StoppedVms" Title="Stopped">
             <Badge Status="error" Text="@context.StoppedVms.ToString()" />
-        </Column>
-        <Column Title="Memory">
+        </PropertyColumn>
+        <PropertyColumn Property="c => c.MemoryGB" Title="Memory">
             @($"{context.MemoryGB:F1} GB")
-        </Column>
+        </PropertyColumn>
     </Table>
 </Card>
 
