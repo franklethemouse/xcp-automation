@@ -20,9 +20,6 @@
     
     <!-- Blazor Packages -->
     <PackageReference Include="AntDesign" Version="0.19.3" />
-    
-    <!-- XenAPI Package -->
-    <PackageReference Include="XenAPI" Version="23.18.0" />
   </ItemGroup>
 
 </Project>
