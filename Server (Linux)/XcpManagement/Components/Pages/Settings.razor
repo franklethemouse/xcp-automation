@@ -1,0 +1,89 @@
+@page "/settings"
+@rendermode InteractiveServer
+@inject IVmCacheService VmCache
+@inject IMessageService MessageService
+
+<PageHeader Title="Settings" />
+
+<Card Title="Cache Refresh Settings" Style="max-width: 600px;">
+    <Form Model="settings" LabelColSpan="8" WrapperColSpan="16">
+        <FormItem Label="Refresh Interval">
+            <InputNumber @bind-Value="settings.RefreshIntervalSeconds" Min="30" Max="600" />
+            <Text Type="secondary"> seconds (30-600)</Text>
+        </FormItem>
+        <FormItem Label="Last Refresh">
+            <Text>@lastRefresh.ToString("yyyy-MM-dd HH:mm:ss")</Text>
+        </FormItem>
+        <FormItem WrapperColOffset="8">
+            <Space>
+                <SpaceItem>
+                    <Button Type="@ButtonType.Primary" OnClick="SaveSettings">
+                        Save Settings
+                    </Button>
+                </SpaceItem>
+                <SpaceItem>
+                    <Button OnClick="RefreshNow">
+                        Refresh Now
+                    </Button>
+                </SpaceItem>
+            </Space>
+        </FormItem>
+    </Form>
+</Card>
+
+<Card Title="System Information" Style="max-width: 600px; margin-top: 24px;">
+    <Descriptions Bordered Column="1">
+        <DescriptionsItem Title="Current Interval">
+            @VmCache.GetRefreshIntervalSeconds() seconds
+        </DescriptionsItem>
+        <DescriptionsItem Title="Last Refresh">
+            @VmCache.GetLastRefreshTime().ToString("yyyy-MM-dd HH:mm:ss")
+        </DescriptionsItem>
+        <DescriptionsItem Title="Cached VMs">
+            @VmCache.GetAllVirtualMachines().Count
+        </DescriptionsItem>
+    </Descriptions>
+</Card>
+
+@code {
+    private SettingsModel settings = new();
+    private DateTime lastRefresh;
+
+    protected override void OnInitialized()
+    {
+        settings.RefreshIntervalSeconds = VmCache.GetRefreshIntervalSeconds();
+        lastRefresh = VmCache.GetLastRefreshTime();
+    }
+
+    private async Task SaveSettings()
+    {
+        try
+        {
+            await VmCache.SetRefreshIntervalAsync(settings.RefreshIntervalSeconds);
+            await MessageService.Success("Settings saved successfully");
+        }
+        catch (Exception ex)
+        {
+            await MessageService.Error($"Failed to save: {ex.Message}");
+        }
+    }
+
+    private async Task RefreshNow()
+    {
+        try
+        {
+            await VmCache.RefreshCacheAsync();
+            lastRefresh = VmCache.GetLastRefreshTime();
+            await MessageService.Success("Cache refreshed");
+        }
+        catch (Exception ex)
+        {
+            await MessageService.Error($"Refresh failed: {ex.Message}");
+        }
+    }
+
+    public class SettingsModel
+    {
+        public int RefreshIntervalSeconds { get; set; } = 60;
+    }
+}

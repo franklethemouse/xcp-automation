@@ -1,118 +1,107 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
 using System.Text;
 using XcpManagement.Data;
 using XcpManagement.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Get database password from environment variable
-var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") 
-    ?? throw new Exception("DB_PASSWORD environment variable not set");
+// Add services to the container
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
-// Update connection string with password
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new Exception("DefaultConnection not found");
-connectionString += $"Password={dbPassword};";
+// Add Blazor services
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
 
-// Add services
+// Add Ant Design
+builder.Services.AddAntDesign();
+
+// Database
+var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD");
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (!string.IsNullOrEmpty(dbPassword))
+{
+    connectionString = connectionString?.Replace("${DB_PASSWORD}", dbPassword);
+}
+
 builder.Services.AddDbContext<XcpDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
-builder.Services.AddScoped<IAgentService, AgentService>();
-builder.Services.AddScoped<IJobService, JobService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
+// JWT Authentication
+var jwtSecret = builder.Configuration["Security:JwtSecret"] ?? throw new InvalidOperationException("JWT Secret not configured");
+var key = Encoding.ASCII.GetBytes(jwtSecret);
 
-// Add JWT authentication
-var jwtSecret = builder.Configuration["Security:JwtSecret"] 
-    ?? throw new Exception("JWT secret not configured");
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.RequireHttpsMetadata = false;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Security:JwtIssuer"],
-            ValidAudience = builder.Configuration["Security:JwtAudience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
-        };
-    });
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ValidateIssuer = true,
+        ValidIssuer = builder.Configuration["Security:JwtIssuer"],
+        ValidateAudience = true,
+        ValidAudience = builder.Configuration["Security:JwtAudience"],
+        ClockSkew = TimeSpan.Zero
+    };
+});
 
 builder.Services.AddAuthorization();
 
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo 
-    { 
-        Title = "XCP-ng Management API", 
-        Version = "v1",
-        Description = "API for managing XCP-ng VMs via agents"
-    });
-    
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "JWT Authorization header using the Bearer scheme",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer"
-    });
-    
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
-    });
-});
+// Application Services
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IAgentService, AgentService>();
+builder.Services.AddScoped<IJobService, JobService>();
+builder.Services.AddScoped<IXenApiService, XenApiService>();
+builder.Services.AddScoped<IXcpHostService, XcpHostService>();
+builder.Services.AddSingleton<IVmCacheService, VmCacheService>();
 
-// Add CORS
+// Background Services
+builder.Services.AddHostedService<BackgroundRefreshService>();
+
+// CORS
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
+    options.AddPolicy("AllowAll",
+        builder => builder
+            .AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader());
 });
 
 var app = builder.Build();
 
-// Configure pipeline
-if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
+// Configure the HTTP request pipeline
+if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "XCP-ng Management API v1");
-        c.RoutePrefix = string.Empty; // Swagger at root
-    });
+    app.UseSwaggerUI();
 }
 
-app.UseCors();
+app.UseStaticFiles();
+app.UseAntiforgery();
+
+app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers();
-
 // Health check endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+
+// API Controllers
+app.MapControllers();
+
+// Blazor
+app.MapRazorComponents<XcpManagement.Components.App>()
+    .AddInteractiveServerRenderMode();
 
 app.Run();

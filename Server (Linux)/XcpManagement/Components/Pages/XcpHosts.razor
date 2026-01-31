@@ -1,0 +1,126 @@
+@page "/hosts"
+@rendermode InteractiveServer
+@inject IXcpHostService HostService
+@inject IMessageService MessageService
+
+<PageHeader Title="XCP-ng Hosts">
+    <PageHeaderExtra>
+        <Button Type="@ButtonType.Primary" OnClick="ShowAddModal">
+            <Icon Type="plus" /> Add Host
+        </Button>
+    </PageHeaderExtra>
+</PageHeader>
+
+<Table TItem="Data.XcpHost" DataSource="@hosts" Loading="@loading">
+    <Column Title="Host Name" @bind-Field="@context.HostName" />
+    <Column Title="URL" @bind-Field="@context.HostUrl" />
+    <Column Title="Status" @bind-Field="@context.Active">
+        <Tag Color="@(context.Active ? "green" : "red")">
+            @(context.Active ? "Active" : "Inactive")
+        </Tag>
+    </Column>
+    <Column Title="Last Connected" @bind-Field="@context.LastConnected">
+        @(context.LastConnected?.ToString("yyyy-MM-dd HH:mm") ?? "Never")
+    </Column>
+    <ActionColumn Title="Actions">
+        <Space>
+            <SpaceItem><Button Size="small" OnClick="() => TestConnection(context)">Test</Button></SpaceItem>
+            <SpaceItem><Button Size="small" Danger OnClick="() => DeleteHost(context)">Delete</Button></SpaceItem>
+        </Space>
+    </ActionColumn>
+</Table>
+
+<Modal Title="Add XCP-ng Host" @bind-Visible="addModalVisible" OnOk="AddHost" OnCancel="() => addModalVisible = false">
+    <Form Model="newHost" LabelColSpan="6" WrapperColSpan="18">
+        <FormItem Label="Host Name">
+            <Input @bind-Value="newHost.HostName" />
+        </FormItem>
+        <FormItem Label="URL">
+            <Input @bind-Value="newHost.HostUrl" Placeholder="https://xcp-host.example.com" />
+        </FormItem>
+        <FormItem Label="Username">
+            <Input @bind-Value="newHost.Username" />
+        </FormItem>
+        <FormItem Label="Password">
+            <InputPassword @bind-Value="newHost.Password" />
+        </FormItem>
+    </Form>
+</Modal>
+
+@code {
+    private List<Data.XcpHost> hosts = new();
+    private bool loading = true;
+    private bool addModalVisible;
+    private NewHostModel newHost = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHosts();
+    }
+
+    private async Task LoadHosts()
+    {
+        loading = true;
+        hosts = await HostService.GetAllHostsAsync();
+        loading = false;
+    }
+
+    private void ShowAddModal()
+    {
+        newHost = new NewHostModel();
+        addModalVisible = true;
+    }
+
+    private async Task AddHost()
+    {
+        try
+        {
+            await HostService.AddHostAsync(newHost.HostName, newHost.HostUrl, newHost.Username, newHost.Password);
+            await MessageService.Success("Host added successfully");
+            addModalVisible = false;
+            await LoadHosts();
+        }
+        catch (Exception ex)
+        {
+            await MessageService.Error($"Failed to add host: {ex.Message}");
+        }
+    }
+
+    private async Task TestConnection(Data.XcpHost host)
+    {
+        try
+        {
+            var canConnect = await HostService.TestConnectionAsync(host.HostUrl, host.Username, host.PasswordHash);
+            if (canConnect)
+                await MessageService.Success("Connection successful!");
+            else
+                await MessageService.Error("Connection failed");
+        }
+        catch (Exception ex)
+        {
+            await MessageService.Error($"Test failed: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteHost(Data.XcpHost host)
+    {
+        try
+        {
+            await HostService.DeleteHostAsync(host.HostId);
+            await MessageService.Success("Host deleted");
+            await LoadHosts();
+        }
+        catch (Exception ex)
+        {
+            await MessageService.Error($"Delete failed: {ex.Message}");
+        }
+    }
+
+    public class NewHostModel
+    {
+        public string HostName { get; set; } = "";
+        public string HostUrl { get; set; } = "";
+        public string Username { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

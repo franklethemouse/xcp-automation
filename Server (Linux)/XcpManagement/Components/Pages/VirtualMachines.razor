@@ -1,0 +1,142 @@
+@page "/vms"
+@rendermode InteractiveServer
+@inject IVmCacheService VmCache
+@inject IXenApiService XenApi
+@inject IMessageService MessageService
+
+<PageHeader Title="Virtual Machines">
+    <PageHeaderExtra>
+        <Button OnClick="RefreshCache">
+            <Icon Type="reload" /> Refresh
+        </Button>
+    </PageHeaderExtra>
+</PageHeader>
+
+<Table TItem="VirtualMachine" DataSource="@vms" Loading="@loading">
+    <Column Title="Name" @bind-Field="@context.NameLabel" />
+    <Column Title="Host" @bind-Field="@context.HostName" />
+    <Column Title="Power State" @bind-Field="@context.PowerState">
+        <Tag Color="@GetPowerStateColor(context.PowerState)">
+            @context.PowerState
+        </Tag>
+    </Column>
+    <Column Title="vCPUs" @bind-Field="@context.VcpusAtStartup" />
+    <Column Title="Memory">
+        @($"{context.MemoryDynamic / (1024.0 * 1024 * 1024):F1} GB")
+    </Column>
+    <Column Title="IP Address" @bind-Field="@context.IpAddress" />
+    <ActionColumn Title="Actions">
+        <Space>
+            @if (context.PowerState == VmPowerState.Halted)
+            {
+                <SpaceItem><Button Size="small" OnClick="() => StartVm(context)">Start</Button></SpaceItem>
+            }
+            @if (context.PowerState == VmPowerState.Running)
+            {
+                <SpaceItem><Button Size="small" OnClick="() => StopVm(context)">Stop</Button></SpaceItem>
+                <SpaceItem><Button Size="small" OnClick="() => RebootVm(context)">Reboot</Button></SpaceItem>
+            }
+        </Space>
+    </ActionColumn>
+</Table>
+
+@code {
+    private List<VirtualMachine> vms = new();
+    private bool loading = true;
+
+    protected override void OnInitialized()
+    {
+        LoadVms();
+    }
+
+    private void LoadVms()
+    {
+        loading = true;
+        vms = VmCache.GetAllVirtualMachines();
+        loading = false;
+    }
+
+    private async Task RefreshCache()
+    {
+        loading = true;
+        await VmCache.RefreshCacheAsync();
+        LoadVms();
+        await MessageService.Success("Cache refreshed");
+    }
+
+    private async Task StartVm(VirtualMachine vm)
+    {
+        try
+        {
+            var success = await XenApi.StartVmAsync(vm.HostId, vm.Uuid);
+            if (success)
+            {
+                await MessageService.Success($"Starting {vm.NameLabel}...");
+                await Task.Delay(2000);
+                await RefreshCache();
+            }
+            else
+            {
+                await MessageService.Error("Failed to start VM");
+            }
+        }
+        catch (Exception ex)
+        {
+            await MessageService.Error($"Error: {ex.Message}");
+        }
+    }
+
+    private async Task StopVm(VirtualMachine vm)
+    {
+        try
+        {
+            var success = await XenApi.StopVmAsync(vm.HostId, vm.Uuid);
+            if (success)
+            {
+                await MessageService.Success($"Stopping {vm.NameLabel}...");
+                await Task.Delay(2000);
+                await RefreshCache();
+            }
+            else
+            {
+                await MessageService.Error("Failed to stop VM");
+            }
+        }
+        catch (Exception ex)
+        {
+            await MessageService.Error($"Error: {ex.Message}");
+        }
+    }
+
+    private async Task RebootVm(VirtualMachine vm)
+    {
+        try
+        {
+            var success = await XenApi.RebootVmAsync(vm.HostId, vm.Uuid);
+            if (success)
+            {
+                await MessageService.Success($"Rebooting {vm.NameLabel}...");
+            }
+            else
+            {
+                await MessageService.Error("Failed to reboot VM");
+            }
+        }
+        catch (Exception ex)
+        {
+            await MessageService.Error($"Error: {ex.Message}");
+        }
+    }
+
+    private string GetPowerStateColor(VmPowerState state)
+    {
+        return state switch
+        {
+            VmPowerState.Running => "green",
+            VmPowerState.Halted => "red",
+            VmPowerState.Suspended => "orange",
+            VmPowerState.Paused => "blue",
+            _ => "default"
+        };
+    }
+}
