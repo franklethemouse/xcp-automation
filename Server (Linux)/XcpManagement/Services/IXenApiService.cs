@@ -11,4 +11,5 @@ public interface IXenApiService
     Task<bool> StopVmAsync(string hostId, string vmUuid);
     Task<bool> RebootVmAsync(string hostId, string vmUuid);
     Task<bool> SuspendVmAsync(string hostId, string vmUuid);
+    Task<bool> ResumeVmAsync(string hostId, string vmUuid);
 }
