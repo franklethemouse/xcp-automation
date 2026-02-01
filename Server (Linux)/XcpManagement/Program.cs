@@ -30,6 +30,11 @@ if (!string.IsNullOrEmpty(dbPassword))
 builder.Services.AddDbContext<XcpDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
+// Data Protection - persist keys for antiforgery tokens
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("/opt/xcp-management/data-protection-keys"))
+    .SetApplicationName("XcpManagement");
+
 // JWT Authentication
 var jwtSecret = builder.Configuration["Security:JwtSecret"] ?? throw new InvalidOperationException("JWT Secret not configured");
 var key = Encoding.ASCII.GetBytes(jwtSecret);

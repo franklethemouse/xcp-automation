@@ -5,15 +5,19 @@
 <PageHeader Title="Settings" />
 
 <Card Title="Cache Refresh Settings" Style="max-width: 600px;">
-    <Form Model="settings" LabelColSpan="8" WrapperColSpan="16">
-        <FormItem Label="Refresh Interval">
-            <AntDesign.InputNumber @bind-Value="settings.RefreshIntervalSeconds" Min="30" Max="600" />
-            <Text Type="secondary"> seconds (30-600)</Text>
-        </FormItem>
-        <FormItem Label="Last Refresh">
+    <div style="padding: 16px;">
+        <div style="margin-bottom: 24px; display: flex; align-items: center; gap: 16px;">
+            <div style="width: 200px;"><strong>Refresh Interval:</strong></div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <AntDesign.InputNumber @bind-Value="@settings.RefreshIntervalSeconds" Min="30" Max="600" />
+                <Text Type="secondary">seconds (30-600)</Text>
+            </div>
+        </div>
+        <div style="margin-bottom: 24px; display: flex; align-items: center; gap: 16px;">
+            <div style="width: 200px;"><strong>Last Refresh:</strong></div>
             <Text>@lastRefresh.ToString("yyyy-MM-dd HH:mm:ss")</Text>
-        </FormItem>
-        <FormItem WrapperColOffset="8">
+        </div>
+        <div style="margin-left: 216px;">
             <Space>
                 <SpaceItem>
                     <Button Type="@ButtonType.Primary" OnClick="SaveSettings">
@@ -26,8 +30,8 @@
                     </Button>
                 </SpaceItem>
             </Space>
-        </FormItem>
-    </Form>
+        </div>
+    </div>
 </Card>
 
 <Card Title="System Information" Style="max-width: 600px; margin-top: 24px;">
@@ -60,6 +64,7 @@
         {
             await VmCache.SetRefreshIntervalAsync(settings.RefreshIntervalSeconds);
             await MessageService.Success("Settings saved successfully");
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -74,6 +79,7 @@
             await VmCache.RefreshCacheAsync();
             lastRefresh = VmCache.GetLastRefreshTime();
             await MessageService.Success("Cache refreshed");
+            StateHasChanged();
         }
         catch (Exception ex)
         {
