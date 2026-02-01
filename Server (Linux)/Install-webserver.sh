@@ -2,16 +2,23 @@
 # -----------------------------------------------------------------------------
 # install-webserver.sh
 # XCP-ng VM Management Web Server Installer (Debian/Ubuntu only)
-# Version: 1.9.0  (Fixed MySQL keyring permissions - encryption.cnf now readable by MySQL)
+# Version: 1.12.0  (Fix nginx.conf creation before package install)
 #
 # Key behaviors:
 #  - GitHub-only deployment path (no manual publish instructions in summary)
-#  - Auto-deploys from GitHub at the end when -y is used
+#  - Auto-deploys from GitHub at the end (always, no prompt)
 #  - Verifies AFTER deployment completes
 #  - Creates app user early; configures MySQL keyring & encryption BEFORE schema
 #  - Systemd unit is JIT-safe for .NET (no MemoryDenyWriteExecute)
+#  - Both appsettings.json and appsettings.Production.json copied from config
+#  - Nginx configured with WebSocket upgrade support for Blazor Server
 #
 # Version History:
+#  1.12.0 - Create nginx.conf before package install to prevent startup failure
+#  1.11.0 - Added WebSocket support to nginx for Blazor Server interactivity
+#  1.10.0 - Confirmed both appsettings files get DB password (no code change needed)
+#  1.9.2 - Fixed connection string: Added missing Password parameter
+#  1.9.1 - Always auto-deploy from GitHub, removed deployment prompt
 #  1.9.0 - Fixed MySQL keyring: Added proper permissions for encryption.cnf
 #  1.8.9 - Expanded formatting & comments; functionally same as v1.8.8
 # -----------------------------------------------------------------------------
@@ -20,7 +27,7 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 umask 077
 
-VERSION="1.9.0"
+VERSION="1.12.0"
 
 # Colors
 RED='\033[0;31m'
@@ -254,8 +261,45 @@ install_nginx_base() {
     return 0
   fi
   echo -e "\n${CYAN}Installing Nginx...${NC}"
-  DEBIAN_FRONTEND=noninteractive apt-get install -y nginx-full
+  
+  # Create nginx.conf BEFORE installing package to prevent startup failure
   mkdir -p /etc/nginx/{sites-available,sites-enabled,modules-enabled,conf.d}
+  cat > /etc/nginx/nginx.conf <<'EOF'
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+error_log /var/log/nginx/error.log;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+  worker_connections 768;
+}
+
+http {
+  sendfile on;
+  tcp_nopush on;
+  types_hash_max_size 2048;
+  include /etc/nginx/mime.types;
+  default_type application/octet-stream;
+
+  access_log /var/log/nginx/access.log;
+
+  gzip on;
+
+  limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
+
+  # WebSocket upgrade mapping for Blazor Server
+  map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
+  }
+
+  include /etc/nginx/conf.d/*.conf;
+  include /etc/nginx/sites-enabled/*;
+}
+EOF
+  
+  DEBIAN_FRONTEND=noninteractive apt-get install -y nginx-full
   mkdir -p /var/www/html /var/www/certbot
   if [ "$TAKEOVER_NGINX" = true ]; then
     rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default || true
@@ -700,35 +744,6 @@ configure_nginx_site() {
 
   echo -e "\n${CYAN}Configuring Nginx HTTPS site...${NC}"
 
-  cat > /etc/nginx/nginx.conf <<'EOF'
-user www-data;
-worker_processes auto;
-pid /run/nginx.pid;
-error_log /var/log/nginx/error.log;
-include /etc/nginx/modules-enabled/*.conf;
-
-events {
-  worker_connections 768;
-}
-
-http {
-  sendfile on;
-  tcp_nopush on;
-  types_hash_max_size 2048;
-  include /etc/nginx/mime.types;
-  default_type application/octet-stream;
-
-  access_log /var/log/nginx/access.log;
-
-  gzip on;
-
-  limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
-
-  include /etc/nginx/conf.d/*.conf;
-  include /etc/nginx/sites-enabled/*;
-}
-EOF
-
   cat > /etc/nginx/sites-available/xcp-management <<EOF
 upstream xcp_backend {
   server 127.0.0.1:5000;
@@ -771,6 +786,14 @@ server {
     proxy_set_header X-Real-IP \$remote_addr;
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto \$scheme;
+    
+    # WebSocket support for Blazor Server
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection \$connection_upgrade;
+    
+    # Timeouts for long-lived connections
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
   }
 }
 EOF
@@ -901,6 +924,10 @@ cp -r "${SOURCE_DIR}/"* "${INSTALL_DIR}/bin/"
 for f in appsettings.json appsettings.Production.json; do
   if [ -f "${INSTALL_DIR}/config/$f" ]; then
     cp "${INSTALL_DIR}/config/$f" "${INSTALL_DIR}/bin/$f"
+    # Verify the password was copied
+    if ! grep -q "Password=" "${INSTALL_DIR}/bin/$f" 2>/dev/null; then
+      echo "WARNING: ${f} may be missing database password"
+    fi
   fi
 done
 
@@ -1054,7 +1081,7 @@ EOF
   "Logging": { "LogLevel": { "Default": "Information", "Microsoft.AspNetCore": "Warning" } },
   "AllowedHosts": "*",
   "Kestrel": { "Endpoints": { "Http": { "Url": "http://127.0.0.1:5000" } } },
-  "ConnectionStrings": { "DefaultConnection": "Server=localhost;Database=${DB_NAME};User=${DB_USER};SslMode=Preferred;" },
+  "ConnectionStrings": { "DefaultConnection": "Server=localhost;Database=${DB_NAME};User=${DB_USER};Password=${DB_APP_PASSWORD};SslMode=Preferred;" },
   "Security": {
     "JwtSecret": "${JWT_SECRET}",
     "JwtIssuer": "https://${DOMAIN}",
@@ -1222,22 +1249,11 @@ main() {
   # Light pre-deploy stack check
   predeploy_verify_stack || true
 
-  # Deploy now in auto mode, otherwise prompt
-  if [ "$AUTO_YES" = true ]; then
-    echo -e "\n${CYAN}Auto-yes is enabled — deploying from GitHub now...${NC}"
-    deploy_from_github || true
-    postdeploy_verify || true
-    display_summary
-  else
-    display_summary
-    echo -e "\n${CYAN}Deploy application now from GitHub? (recommended)${NC}"
-    if prompt_user "Deploy from GitHub"; then
-      deploy_from_github
-      postdeploy_verify || true
-    else
-      echo -e "${YELLOW}[SKIP]${NC} You can deploy later with: sudo ${INSTALL_DIR}/update.sh"
-    fi
-  fi
+  # Always deploy from GitHub
+  echo -e "\n${CYAN}Deploying from GitHub...${NC}"
+  deploy_from_github || true
+  postdeploy_verify || true
+  display_summary
 }
 
 main "$@"
