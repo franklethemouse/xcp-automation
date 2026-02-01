@@ -2,7 +2,7 @@
 # -----------------------------------------------------------------------------
 # install-webserver.sh
 # XCP-ng VM Management Web Server Installer (Debian/Ubuntu only)
-# Version: 1.12.0  (Fix nginx.conf creation before package install)
+# Version: 1.16.0  (Detect and fix broken nginx package state)
 #
 # Key behaviors:
 #  - GitHub-only deployment path (no manual publish instructions in summary)
@@ -12,11 +12,15 @@
 #  - Systemd unit is JIT-safe for .NET (no MemoryDenyWriteExecute)
 #  - Both appsettings.json and appsettings.Production.json copied from config
 #  - Nginx configured with WebSocket upgrade support for Blazor Server
+#  - Logs all output to /opt/xcp-management/install.log
 #
 # Version History:
+#  1.16.0 - Detect broken nginx-common package state and purge before reinstall
+#  1.15.0 - Force reinstall nginx-common to restore mime.types after purge
+#  1.14.0 - Add installation logging, remove redundant GitHub deploy step from completion
+#  1.13.0 - Install nginx-common first to get mime.types before creating config
 #  1.12.0 - Create nginx.conf before package install to prevent startup failure
 #  1.11.0 - Added WebSocket support to nginx for Blazor Server interactivity
-#  1.10.0 - Confirmed both appsettings files get DB password (no code change needed)
 #  1.9.2 - Fixed connection string: Added missing Password parameter
 #  1.9.1 - Always auto-deploy from GitHub, removed deployment prompt
 #  1.9.0 - Fixed MySQL keyring: Added proper permissions for encryption.cnf
@@ -27,7 +31,7 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 umask 077
 
-VERSION="1.12.0"
+VERSION="1.16.0"
 
 # Colors
 RED='\033[0;31m'
@@ -262,7 +266,16 @@ install_nginx_base() {
   fi
   echo -e "\n${CYAN}Installing Nginx...${NC}"
   
-  # Create nginx.conf BEFORE installing package to prevent startup failure
+  # Ensure clean state: purge if package exists but files are missing
+  if dpkg -l | grep -q nginx-common && [ ! -f /etc/nginx/mime.types ]; then
+    echo "Cleaning broken nginx-common package..."
+    DEBIAN_FRONTEND=noninteractive apt-get purge -y nginx-common nginx nginx-full libnginx-mod-* 2>/dev/null || true
+  fi
+  
+  # Install nginx-common first to get mime.types
+  DEBIAN_FRONTEND=noninteractive apt-get install -y nginx-common
+  
+  # Create nginx.conf BEFORE installing nginx package
   mkdir -p /etc/nginx/{sites-available,sites-enabled,modules-enabled,conf.d}
   cat > /etc/nginx/nginx.conf <<'EOF'
 user www-data;
@@ -1142,12 +1155,10 @@ display_summary() {
   echo "Credentials:  ${CREDENTIALS_FILE}"
   echo "Certificates: ${INSTALL_DIR}/certificates/server-cert.pem (public chain only)"
   echo
-  echo -e "${CYAN}Next Steps:${NC}"
-  echo " 1) Deploy from GitHub:"
-  echo "    sudo ${INSTALL_DIR}/update.sh"
-  echo
-  echo " 2) Access:"
+  echo -e "${CYAN}Access your application:${NC}"
   echo "    https://${DOMAIN}/"
+  echo
+  echo "Installation log: ${INSTALL_DIR}/install.log"
 }
 
 deploy_from_github() {
@@ -1160,6 +1171,11 @@ deploy_from_github() {
 # Main
 # -----------------------------------------------------------------------------
 main() {
+  # Setup logging
+  mkdir -p "${INSTALL_DIR}"
+  exec > >(tee -a "${INSTALL_DIR}/install.log") 2>&1
+  echo "=== Installation started at $(date) ==="
+  
   # Parse args
   while [[ $# -gt 0 ]]; do
     case $1 in
