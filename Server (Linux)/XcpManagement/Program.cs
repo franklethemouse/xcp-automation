@@ -13,6 +13,9 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// HTTP Client
+builder.Services.AddHttpClient();
+
 // Add Blazor services
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
