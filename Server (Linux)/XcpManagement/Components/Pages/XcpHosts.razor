@@ -30,24 +30,20 @@
 </Table>
 
 <Modal Title="Add XCP-ng Host" @bind-Visible="addModalVisible" OnOk="AddHost" OnCancel="() => addModalVisible = false">
-    <div style="padding: 16px;">
-        <div style="margin-bottom: 16px;">
-            <label>Host Name</label>
-            <Input @bind-Value="@newHost.HostName" />
-        </div>
-        <div style="margin-bottom: 16px;">
-            <label>URL</label>
-            <Input @bind-Value="@newHost.HostUrl" Placeholder="https://xcp-host.example.com" />
-        </div>
-        <div style="margin-bottom: 16px;">
-            <label>Username</label>
-            <Input @bind-Value="@newHost.Username" />
-        </div>
-        <div style="margin-bottom: 16px;">
-            <label>Password</label>
-            <InputPassword @bind-Value="@newHost.Password" />
-        </div>
-    </div>
+    <Form Model="newHost" LabelColSpan="6" WrapperColSpan="18">
+        <FormItem Label="Host Name">
+            <Input @bind-Value="newHost.HostName" />
+        </FormItem>
+        <FormItem Label="URL">
+            <Input @bind-Value="newHost.HostUrl" Placeholder="https://xcp-host.example.com" />
+        </FormItem>
+        <FormItem Label="Username">
+            <Input @bind-Value="newHost.Username" />
+        </FormItem>
+        <FormItem Label="Password">
+            <InputPassword @bind-Value="newHost.Password" />
+        </FormItem>
+    </Form>
 </Modal>
 
 @code {
