@@ -24,7 +24,7 @@ public class XenApiService : IXenApiService
     {
         var xml = BuildXmlRpcRequest(method, parameters);
         
-        var httpClient = _httpClientFactory.CreateClient();
+        var httpClient = _httpClientFactory.CreateClient("XenAPI");
         httpClient.Timeout = TimeSpan.FromSeconds(30);
         
         var content = new StringContent(xml, Encoding.UTF8, "text/xml");

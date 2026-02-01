@@ -14,7 +14,11 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // HTTP Client
-builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("XenAPI")
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+    });
 
 // Add Blazor services
 builder.Services.AddRazorComponents()
