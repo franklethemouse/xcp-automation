@@ -29,7 +29,10 @@
     </ActionColumn>
 </Table>
 
-<Modal Title="Add XCP-ng Host" @bind-Visible="addModalVisible" OnOk="AddHost" OnCancel="() => addModalVisible = false">
+<Modal Title="Add XCP-ng Host" 
+       @bind-Visible="addModalVisible" 
+       OnOk="async () => await AddHost()" 
+       OnCancel="() => addModalVisible = false">
     <div style="padding: 16px;">
         <div style="margin-bottom: 16px;">
             <div style="margin-bottom: 4px;"><strong>Host Name</strong></div>
