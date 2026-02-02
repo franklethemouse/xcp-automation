@@ -31,7 +31,8 @@
 
 <Modal Title="Add XCP-ng Host" 
        @bind-Visible="addModalVisible" 
-       OnOk="async () => await AddHost()" 
+       OnOk="HandleOk"
+       ConfirmLoading="@isSubmitting"
        OnCancel="() => addModalVisible = false">
     <div style="padding: 16px;">
         <div style="margin-bottom: 16px;">
@@ -57,6 +58,7 @@
     private List<Data.XcpHost> hosts = new();
     private bool loading = true;
     private bool addModalVisible;
+    private bool isSubmitting = false;
     private NewHostModel newHost = new();
 
     protected override async Task OnInitializedAsync()
@@ -76,6 +78,13 @@
         newHost = new NewHostModel();
         addModalVisible = true;
         StateHasChanged();
+    }
+
+    private async Task HandleOk()
+    {
+        isSubmitting = true;
+        await AddHost();
+        isSubmitting = false;
     }
 
     private async Task AddHost()
