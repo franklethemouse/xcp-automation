@@ -13,27 +13,125 @@
 </PageHeader>
 
 <Card Style="max-width: 1000px; margin: 0 auto;">
-    <Title Level="3">VM Deployment - Coming Soon</Title>
-    <Paragraph>
-        The VM deployment feature is currently under development.
-    </Paragraph>
-    <Paragraph>
-        This will allow you to:
-    </Paragraph>
-    <ul>
-        <li>Select templates from your XCP-ng host</li>
-        <li>Configure CPU, Memory, and Disk resources</li>
-        <li>Deploy new VMs automatically</li>
-    </ul>
-    
-    <Button Type="@ButtonType.Primary" OnClick="GoBackToVms">
-        Back to Virtual Machines
-    </Button>
+    <Title Level="3">Step 1: Select Template</Title>
+
+    <Form Model="@templateSelection" LabelColSpan="6" WrapperColSpan="18">
+        
+        <FormItem Label="XCP-ng Host">
+            <Select TItem="string" 
+                    TItemValue="string"
+                    @bind-Value="@templateSelection.HostId" 
+                    Placeholder="Select host"
+                    Style="width: 100%;">
+                @foreach (var host in hosts)
+                {
+                    <SelectOption TItem="string" TItemValue="string" 
+                                  Value="@host.HostId" 
+                                  Label="@host.HostName" />
+                }
+            </Select>
+        </FormItem>
+
+        <FormItem WrapperColOffset="6">
+            <Button Type="@ButtonType.Primary" 
+                    OnClick="LoadTemplatesClick" 
+                    Disabled="@string.IsNullOrEmpty(templateSelection.HostId)"
+                    Loading="@loadingTemplates">
+                Load Templates
+            </Button>
+        </FormItem>
+
+        @if (templates.Any())
+        {
+            <FormItem Label="Template">
+                <Select TItem="string" 
+                        TItemValue="string"
+                        @bind-Value="@templateSelection.TemplateUuid" 
+                        Placeholder="Select a template"
+                        Style="width: 100%;">
+                    @foreach (var template in templates)
+                    {
+                        <SelectOption TItem="string" TItemValue="string" 
+                                      Value="@template.Uuid" 
+                                      Label="@template.NameLabel" />
+                    }
+                </Select>
+            </FormItem>
+
+            @if (selectedTemplate != null)
+            {
+                <FormItem WrapperColOffset="6">
+                    <Alert Type="@AlertType.Info" Message="Template Details">
+                        <Description>
+                            <p><strong>CPUs:</strong> @selectedTemplate.VcpusMax</p>
+                            <p><strong>Memory:</strong> @((selectedTemplate.MemoryStaticMax / 1024 / 1024).ToString("N0")) MB</p>
+                        </Description>
+                    </Alert>
+                </FormItem>
+            }
+
+            <FormItem WrapperColOffset="6">
+                <Button Type="@ButtonType.Primary" 
+                        Disabled="@string.IsNullOrEmpty(templateSelection.TemplateUuid)">
+                    Next: Configure Resources <Icon Type="arrow-right" />
+                </Button>
+            </FormItem>
+        }
+
+    </Form>
 </Card>
 
 @code {
+    private List<Data.XcpHost> hosts = new();
+    private List<VmTemplate> templates = new();
+    
+    private TemplateSelectionModel templateSelection = new();
+    private VmTemplate? selectedTemplate;
+    
+    private bool loadingTemplates;
+
+    protected override async Task OnInitializedAsync()
+    {
+        hosts = await HostService.GetAllHostsAsync();
+        
+        // Auto-select first host if only one
+        if (hosts.Count == 1)
+        {
+            templateSelection.HostId = hosts[0].HostId;
+        }
+    }
+
+    private async Task LoadTemplatesClick()
+    {
+        if (string.IsNullOrEmpty(templateSelection.HostId)) return;
+
+        loadingTemplates = true;
+        StateHasChanged();
+
+        try
+        {
+            templates = await DeploymentService.GetTemplatesAsync(templateSelection.HostId);
+            await MessageService.Success($"Loaded {templates.Count} templates");
+        }
+        catch (Exception ex)
+        {
+            await MessageService.Error($"Failed to load templates: {ex.Message}");
+        }
+        finally
+        {
+            loadingTemplates = false;
+        }
+    }
+
     private void GoBackToVms()
     {
         Navigation.NavigateTo("/vms");
+    }
+
+    // Simple model for Step 1
+    public class TemplateSelectionModel
+    {
+        public string HostId { get; set; } = string.Empty;
+        public string TemplateUuid { get; set; } = string.Empty;
     }
 }
