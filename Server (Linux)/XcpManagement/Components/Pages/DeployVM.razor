@@ -15,22 +15,35 @@
 <Card Style="max-width: 1000px; margin: 0 auto;">
     <Title Level="3">Step 1: Select Template</Title>
 
-    <Form Model="@templateSelection" LabelColSpan="6" WrapperColSpan="18">
-        
-        <FormItem Label="XCP-ng Host">
-            <Select TItem="string" 
-                    TItemValue="string"
-                    @bind-Value="@templateSelection.HostId" 
-                    Placeholder="Select host"
-                    Style="width: 100%;">
-                @foreach (var host in hosts)
-                {
-                    <SelectOption TItem="string" TItemValue="string" 
-                                  Value="@host.HostId" 
-                                  Label="@host.HostName" />
-                }
-            </Select>
-        </FormItem>
+    @if (loadingHosts)
+    {
+        <div style="text-align: center; padding: 40px;">
+            <Spin Size="large" Tip="Loading hosts..." />
+        </div>
+    }
+    else if (!hosts.Any())
+    {
+        <Alert Type="@AlertType.Warning" Message="No XCP-ng hosts configured" Description="Please add a host in the XCP Hosts page first." />
+    }
+    else
+    {
+        <Form Model="@templateSelection" LabelColSpan="6" WrapperColSpan="18">
+            
+            <FormItem Label="XCP-ng Host">
+                <p>Found @hosts.Count host(s)</p>
+                <Select TItem="string" 
+                        TItemValue="string"
+                        @bind-Value="@templateSelection.HostId" 
+                        Placeholder="Select host"
+                        Style="width: 100%;">
+                    @foreach (var host in hosts)
+                    {
+                        <SelectOption TItem="string" TItemValue="string" 
+                                      Value="@host.HostId" 
+                                      Label="@host.HostName" />
+                    }
+                </Select>
+            </FormItem>
 
         <FormItem WrapperColOffset="6">
             <Button Type="@ButtonType.Primary" 
@@ -79,6 +92,7 @@
         }
 
     </Form>
+    }
 </Card>
 
 @code {
@@ -88,16 +102,24 @@
     private TemplateSelectionModel templateSelection = new();
     private VmTemplate? selectedTemplate;
     
+    private bool loadingHosts = true;
     private bool loadingTemplates;
 
     protected override async Task OnInitializedAsync()
     {
-        hosts = await HostService.GetAllHostsAsync();
-        
-        // Auto-select first host if only one
-        if (hosts.Count == 1)
+        try
         {
-            templateSelection.HostId = hosts[0].HostId;
+            hosts = await HostService.GetAllHostsAsync();
+            
+            // Auto-select first host if only one
+            if (hosts.Count == 1)
+            {
+                templateSelection.HostId = hosts[0].HostId;
+            }
+        }
+        finally
+        {
+            loadingHosts = false;
         }
     }
 
