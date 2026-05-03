@@ -40,7 +40,8 @@
         </div>
         <div style="margin-bottom: 16px;">
             <div style="margin-bottom: 4px;"><strong>URL</strong></div>
-            <Input @bind-Value="@newHost.HostUrl" Placeholder="https://xcp-host.example.com" />
+            <Input @bind-Value="@newHost.HostUrl" Placeholder="https://192.168.1.100" />
+            <div style="font-size: 12px; color: #888; margin-top: 4px;">Must start with https:// or http://</div>
         </div>
         <div style="margin-bottom: 16px;">
             <div style="margin-bottom: 4px;"><strong>Username</strong></div>
@@ -91,6 +92,19 @@
             string.IsNullOrWhiteSpace(newHost.Password))
         {
             await MessageService.Error("All fields are required.");
+            return;
+        }
+
+        if (!newHost.HostUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) &&
+            !newHost.HostUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+        {
+            await MessageService.Error("URL must start with https:// or http://");
+            return;
+        }
+
+        if (!Uri.TryCreate(newHost.HostUrl, UriKind.Absolute, out _))
+        {
+            await MessageService.Error("URL is not valid. Example: https://192.168.1.167");
             return;
         }
 

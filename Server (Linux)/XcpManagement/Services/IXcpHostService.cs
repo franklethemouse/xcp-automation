@@ -9,5 +9,5 @@ public interface IXcpHostService
     Task<XcpHost> AddHostAsync(string hostName, string hostUrl, string username, string password);
     Task<bool> UpdateHostAsync(XcpHost host);
     Task<bool> DeleteHostAsync(string hostId);
-    Task<bool> TestConnectionAsync(string hostUrl, string username, string password);
+    Task<bool> TestConnectionAsync(string hostUrl, string username, string passwordHash);
 }
