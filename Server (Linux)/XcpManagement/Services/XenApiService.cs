@@ -131,7 +131,10 @@ public class XenApiService : IXenApiService
             _logger.LogInformation("Testing connection to {HostUrl}", hostUrl);
             
             var response = await CallXenApiAsync(hostUrl, "session.login_with_password", username, password, "1.0", "XCP-Management");
+            _logger.LogInformation("Raw XenAPI response: {Response}", response);
+
             var sessionRef = ExtractStringValue(response);
+            _logger.LogInformation("Extracted session ref: '{SessionRef}'", sessionRef);
             
             if (string.IsNullOrEmpty(sessionRef))
                 return false;
@@ -161,7 +164,6 @@ public class XenApiService : IXenApiService
 
             var password = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(host.PasswordHash));
             
-            // Login
             var loginResponse = await CallXenApiAsync(host.HostUrl, "session.login_with_password", host.Username, password, "1.0", "XCP-Management");
             var sessionRef = ExtractStringValue(loginResponse);
 
@@ -171,7 +173,6 @@ public class XenApiService : IXenApiService
                 return new List<VirtualMachine>();
             }
 
-            // Get all VMs
             var vmListResponse = await CallXenApiAsync(host.HostUrl, "VM.get_all", sessionRef);
             var vmRefs = ExtractArrayValue(vmListResponse);
 
@@ -184,7 +185,6 @@ public class XenApiService : IXenApiService
                     var vmRecordResponse = await CallXenApiAsync(host.HostUrl, "VM.get_record", sessionRef, vmRef);
                     var vm = ExtractStructValue(vmRecordResponse);
 
-                    // Skip control domain, templates, and snapshots
                     if (vm.GetValueOrDefault("is_control_domain", "false") == "true" ||
                         vm.GetValueOrDefault("is_a_template", "false") == "true" ||
                         vm.GetValueOrDefault("is_a_snapshot", "false") == "true")
@@ -220,7 +220,6 @@ public class XenApiService : IXenApiService
                 }
             }
 
-            // Logout
             await CallXenApiAsync(host.HostUrl, "session.logout", sessionRef);
 
             _logger.LogInformation("Retrieved {Count} VMs for host {HostId}", vms.Count, hostId);
