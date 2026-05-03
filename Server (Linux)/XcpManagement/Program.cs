@@ -76,6 +76,7 @@ builder.Services.AddScoped<IAgentService, AgentService>();
 builder.Services.AddScoped<IJobService, JobService>();
 builder.Services.AddScoped<IXenApiService, XenApiService>();
 builder.Services.AddScoped<IXcpHostService, XcpHostService>();
+builder.Services.AddScoped<IVmDeploymentService, VmDeploymentService>();
 builder.Services.AddSingleton<IVmCacheService, VmCacheService>();
 
 // Background Services

@@ -1,0 +1,443 @@
+@page "/deploy"
+@inject IVmDeploymentService DeploymentService
+@inject IXcpHostService HostService
+@inject IMessageService MessageService
+@inject NavigationManager Navigation
+
+<PageHeader Title="Deploy Virtual Machine">
+    <PageHeaderExtra>
+        <Button OnClick="() => Navigation.NavigateTo(\"/vms\")">
+            <Icon Type="arrow-left" /> Back to VMs
+        </Button>
+    </PageHeaderExtra>
+</PageHeader>
+
+@if (deploymentInProgress)
+{
+    <Card Title="Deployment in Progress" Style="max-width: 800px; margin: 0 auto;">
+        <Steps Current="@currentStep" Size="small">
+            <Step Title="Template" />
+            <Step Title="Configuration" />
+            <Step Title="Deploying" />
+            <Step Title="Complete" />
+        </Steps>
+
+        <div style="margin-top: 32px;">
+            <Progress Percent="@progress.PercentComplete" 
+                      Status="@(progress.HasError ? "exception" : (progress.IsComplete ? "success" : "active"))" />
+            
+            <div style="margin-top: 16px; text-align: center;">
+                <Title Level="4">@progress.Stage</Title>
+                <Paragraph>@progress.Message</Paragraph>
+            </div>
+
+            @if (progress.HasError)
+            {
+                <Alert Type="@AlertType.Error" 
+                       Message="Deployment Failed"
+                       Description="@progress.ErrorMessage"
+                       ShowIcon />
+                
+                <div style="text-align: center; margin-top: 16px;">
+                    <Button Type="@ButtonType.Primary" OnClick="ResetForm">Try Again</Button>
+                </div>
+            }
+            else if (progress.IsComplete)
+            {
+                <Result Status="success"
+                        Title="VM Deployed Successfully!"
+                        SubTitle="@($"Virtual machine '{deploymentRequest.VmName}' has been created and {(deploymentRequest.StartAfterCreation ? "started" : "is ready to start")}.")">
+                    <Extra>
+                        <Space>
+                            <SpaceItem>
+                                <Button Type="@ButtonType.Primary" OnClick="() => Navigation.NavigateTo(\"/vms\")">
+                                    View All VMs
+                                </Button>
+                            </SpaceItem>
+                            <SpaceItem>
+                                <Button OnClick="ResetForm">Deploy Another</Button>
+                            </SpaceItem>
+                        </Space>
+                    </Extra>
+                </Result>
+            }
+        </div>
+    </Card>
+}
+else
+{
+    <Card Style="max-width: 1200px; margin: 0 auto;">
+        <Steps Current="@currentStep" Size="small" Style="margin-bottom: 32px;">
+            <Step Title="Select Template" />
+            <Step Title="Configure Resources" />
+            <Step Title="Review & Deploy" />
+        </Steps>
+
+        <Form Model="deploymentRequest" LabelColSpan="6" WrapperColSpan="18" OnFinish="HandleDeploy">
+            
+            @* Step 1: Template Selection *@
+            @if (currentStep == 0)
+            {
+                <FormItem Label="XCP-ng Host">
+                    <Select @bind-Value="selectedHostId" 
+                            Placeholder="Select host"
+                            OnSelectedItemChanged="OnHostSelected"
+                            Style="width: 100%;">
+                        @foreach (var host in hosts)
+                        {
+                            <SelectOption Value="@host.HostId" Label="@host.HostName">
+                                <Space>
+                                    <SpaceItem><Icon Type="cluster" /></SpaceItem>
+                                    <SpaceItem>@host.HostName</SpaceItem>
+                                </Space>
+                            </SelectOption>
+                        }
+                    </Select>
+                </FormItem>
+
+                @if (loadingTemplates)
+                {
+                    <div style="text-align: center; padding: 40px;">
+                        <Spin Size="large" Tip="Loading templates..." />
+                    </div>
+                }
+                else if (templates.Any())
+                {
+                    <FormItem Label="Template">
+                        <Select @bind-Value="selectedTemplateUuid" 
+                                Placeholder="Select a template"
+                                OnSelectedItemChanged="OnTemplateSelected"
+                                Style="width: 100%;"
+                                ShowSearch>
+                            @foreach (var template in templates)
+                            {
+                                <SelectOption Value="@template.Uuid" Label="@template.NameLabel">
+                                    <div>
+                                        <strong>@template.NameLabel</strong>
+                                        @if (!string.IsNullOrEmpty(template.NameDescription))
+                                        {
+                                            <div style="font-size: 12px; color: #888;">@template.NameDescription</div>
+                                        }
+                                    </div>
+                                </SelectOption>
+                            }
+                        </Select>
+                    </FormItem>
+
+                    @if (selectedTemplate != null)
+                    {
+                        <Alert Type="@AlertType.Info" ShowIcon Style="margin-bottom: 16px;">
+                            <MessageTemplate>
+                                <strong>Template Details:</strong><br/>
+                                CPUs: @selectedTemplate.VcpusMax | 
+                                Memory: @((selectedTemplate.MemoryStaticMax / 1024 / 1024).ToString("N0")) MB
+                            </MessageTemplate>
+                        </Alert>
+                    }
+                }
+
+                <FormItem WrapperColOffset="6">
+                    <Button Type="@ButtonType.Primary" 
+                            OnClick="() => currentStep = 1"
+                            Disabled="string.IsNullOrEmpty(selectedTemplateUuid)">
+                        Next: Configure <Icon Type="arrow-right" />
+                    </Button>
+                </FormItem>
+            }
+
+            @* Step 2: Resource Configuration *@
+            @if (currentStep == 1)
+            {
+                <FormItem Label="VM Name" Required>
+                    <Input @bind-Value="deploymentRequest.VmName" 
+                           Placeholder="e.g., WEB-SERVER-01" 
+                           MaxLength="50" />
+                </FormItem>
+
+                <Divider>CPU Configuration</Divider>
+
+                <FormItem Label="Number of CPUs">
+                    <AntDesign.InputNumber @bind-Value="deploymentRequest.CpuCount" 
+                                          Min="1" Max="64" DefaultValue="2" />
+                    <Text Type="secondary"> (Number of virtual CPUs)</Text>
+                </FormItem>
+
+                <FormItem Label="Cores per Socket">
+                    <AntDesign.InputNumber @bind-Value="deploymentRequest.CoresPerSocket" 
+                                          Min="1" Max="16" DefaultValue="1" />
+                    <Text Type="secondary"> (Cores per CPU socket)</Text>
+                </FormItem>
+
+                <Alert Type="@AlertType.Info" ShowIcon Style="margin-bottom: 16px;">
+                    <MessageTemplate>
+                        <strong>Total vCPUs:</strong> @(deploymentRequest.CpuCount * deploymentRequest.CoresPerSocket)<br/>
+                        <small>Example: 4 CPUs × 2 Cores = 8 total vCPUs</small>
+                    </MessageTemplate>
+                </Alert>
+
+                <Divider>Memory Configuration</Divider>
+
+                <FormItem Label="Memory (MB)">
+                    <AntDesign.InputNumber @bind-Value="deploymentRequest.MemoryMB" 
+                                          Min="512" Max="524288" DefaultValue="2048" Step="512" />
+                    <Text Type="secondary"> MB (@((deploymentRequest.MemoryMB / 1024.0).ToString("F1")) GB)</Text>
+                </FormItem>
+
+                <Divider>Storage Configuration</Divider>
+
+                <FormItem Label="Primary Disk Size (GB)">
+                    <AntDesign.InputNumber @bind-Value="deploymentRequest.DiskSizeGB" 
+                                          Min="1" Max="16384" DefaultValue="50" />
+                    <Text Type="secondary"> GB</Text>
+                </FormItem>
+
+                <Divider>Network Configuration</Divider>
+
+                @if (loadingNetworks)
+                {
+                    <Spin />
+                }
+                else if (networks.Any())
+                {
+                    <FormItem Label="Network">
+                        <Select @bind-Value="selectedNetworkUuid" 
+                                Placeholder="Select network"
+                                OnSelectedItemChanged="OnNetworkSelected"
+                                Style="width: 100%;">
+                            @foreach (var network in networks)
+                            {
+                                <SelectOption Value="@network.Uuid" Label="@network.NameLabel">
+                                    <Space>
+                                        <SpaceItem><Icon Type="gateway" /></SpaceItem>
+                                        <SpaceItem>
+                                            <div>
+                                                <strong>@network.NameLabel</strong>
+                                                @if (!string.IsNullOrEmpty(network.Bridge))
+                                                {
+                                                    <Text Type="secondary" Style="font-size: 12px;"> (@network.Bridge)</Text>
+                                                }
+                                            </div>
+                                        </SpaceItem>
+                                    </Space>
+                                </SelectOption>
+                            }
+                        </Select>
+                    </FormItem>
+                }
+
+                <Divider>Start Options</Divider>
+
+                <FormItem Label="Auto-Start">
+                    <Switch @bind-Checked="deploymentRequest.StartAfterCreation" 
+                            CheckedChildren="Yes" UnCheckedChildren="No" />
+                    <Text Type="secondary"> Start VM immediately after creation</Text>
+                </FormItem>
+
+                <FormItem WrapperColOffset="6">
+                    <Space>
+                        <SpaceItem>
+                            <Button OnClick="() => currentStep = 0">
+                                <Icon Type="arrow-left" /> Back
+                            </Button>
+                        </SpaceItem>
+                        <SpaceItem>
+                            <Button Type="@ButtonType.Primary" OnClick="() => currentStep = 2">
+                                Next: Review <Icon Type="arrow-right" />
+                            </Button>
+                        </SpaceItem>
+                    </Space>
+                </FormItem>
+            }
+
+            @* Step 3: Review & Deploy *@
+            @if (currentStep == 2)
+            {
+                <Descriptions Title="Deployment Summary" Bordered Column="1">
+                    <DescriptionsItem Title="VM Name">
+                        <strong>@deploymentRequest.VmName</strong>
+                    </DescriptionsItem>
+                    <DescriptionsItem Title="Host">
+                        @hosts.FirstOrDefault(h => h.HostId == selectedHostId)?.HostName
+                    </DescriptionsItem>
+                    <DescriptionsItem Title="Template">
+                        @selectedTemplate?.NameLabel
+                    </DescriptionsItem>
+                    <DescriptionsItem Title="CPUs">
+                        @deploymentRequest.CpuCount × @deploymentRequest.CoresPerSocket cores = 
+                        <Tag Color="blue">@(deploymentRequest.CpuCount * deploymentRequest.CoresPerSocket) vCPUs</Tag>
+                    </DescriptionsItem>
+                    <DescriptionsItem Title="Memory">
+                        <Tag Color="green">@deploymentRequest.MemoryMB MB (@((deploymentRequest.MemoryMB / 1024.0).ToString("F1")) GB)</Tag>
+                    </DescriptionsItem>
+                    <DescriptionsItem Title="Primary Disk">
+                        <Tag Color="purple">@deploymentRequest.DiskSizeGB GB</Tag>
+                    </DescriptionsItem>
+                    <DescriptionsItem Title="Network">
+                        @networks.FirstOrDefault(n => n.Uuid == selectedNetworkUuid)?.NameLabel
+                    </DescriptionsItem>
+                    <DescriptionsItem Title="Auto-Start">
+                        @if (deploymentRequest.StartAfterCreation)
+                        {
+                            <Tag Color="success">Yes - Start immediately</Tag>
+                        }
+                        else
+                        {
+                            <Tag>No - Manual start required</Tag>
+                        }
+                    </DescriptionsItem>
+                </Descriptions>
+
+                <Alert Type="@AlertType.Warning" 
+                       Message="Ready to Deploy" 
+                       Description="Please review the configuration above. Once you click Deploy, the VM creation process will begin."
+                       ShowIcon 
+                       Style="margin-top: 24px;" />
+
+                <FormItem WrapperColOffset="6" Style="margin-top: 24px;">
+                    <Space>
+                        <SpaceItem>
+                            <Button OnClick="() => currentStep = 1">
+                                <Icon Type="arrow-left" /> Back
+                            </Button>
+                        </SpaceItem>
+                        <SpaceItem>
+                            <Button Type="@ButtonType.Primary" 
+                                    HtmlType="submit"
+                                    Loading="deploymentInProgress"
+                                    Size="large">
+                                <Icon Type="rocket" /> Deploy Virtual Machine
+                            </Button>
+                        </SpaceItem>
+                    </Space>
+                </FormItem>
+            }
+
+        </Form>
+    </Card>
+}
+
+@code {
+    private List<Data.XcpHost> hosts = new();
+    private List<VmTemplate> templates = new();
+    private List<XcpNetwork> networks = new();
+    
+    private string selectedHostId = string.Empty;
+    private string selectedTemplateUuid = string.Empty;
+    private string selectedNetworkUuid = string.Empty;
+    
+    private VmTemplate? selectedTemplate;
+    private bool loadingTemplates;
+    private bool loadingNetworks;
+    
+    private int currentStep = 0;
+    private bool deploymentInProgress;
+    
+    private VmDeploymentRequest deploymentRequest = new();
+    private DeploymentProgress progress = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        hosts = await HostService.GetAllHostsAsync();
+        
+        // Auto-select first host if only one
+        if (hosts.Count == 1)
+        {
+            selectedHostId = hosts[0].HostId;
+            await LoadTemplatesAndNetworks();
+        }
+    }
+
+    private async Task OnHostSelected(string hostId)
+    {
+        selectedHostId = hostId;
+        await LoadTemplatesAndNetworks();
+    }
+
+    private async Task LoadTemplatesAndNetworks()
+    {
+        if (string.IsNullOrEmpty(selectedHostId)) return;
+
+        loadingTemplates = true;
+        loadingNetworks = true;
+        StateHasChanged();
+
+        try
+        {
+            templates = await DeploymentService.GetTemplatesAsync(selectedHostId);
+            networks = await DeploymentService.GetNetworksAsync(selectedHostId);
+        }
+        catch (Exception ex)
+        {
+            await MessageService.Error($"Failed to load templates: {ex.Message}");
+        }
+        finally
+        {
+            loadingTemplates = false;
+            loadingNetworks = false;
+        }
+    }
+
+    private void OnTemplateSelected(string templateUuid)
+    {
+        selectedTemplateUuid = templateUuid;
+        selectedTemplate = templates.FirstOrDefault(t => t.Uuid == templateUuid);
+        
+        if (selectedTemplate != null)
+        {
+            // Pre-fill with template defaults
+            deploymentRequest.CpuCount = selectedTemplate.VcpusMax > 0 ? selectedTemplate.VcpusMax : 2;
+            deploymentRequest.MemoryMB = selectedTemplate.MemoryStaticMax > 0 
+                ? (int)(selectedTemplate.MemoryStaticMax / 1024 / 1024) 
+                : 2048;
+        }
+    }
+
+    private void OnNetworkSelected(string networkUuid)
+    {
+        selectedNetworkUuid = networkUuid;
+    }
+
+    private async Task HandleDeploy()
+    {
+        try
+        {
+            // Validate
+            await DeploymentService.ValidateDeploymentRequestAsync(deploymentRequest);
+
+            // Set deployment details
+            deploymentRequest.HostId = selectedHostId;
+            deploymentRequest.TemplateUuid = selectedTemplateUuid;
+            deploymentRequest.TemplateName = selectedTemplate?.NameLabel ?? "";
+            deploymentRequest.NetworkUuid = selectedNetworkUuid;
+            deploymentRequest.NetworkName = networks.FirstOrDefault(n => n.Uuid == selectedNetworkUuid)?.NameLabel ?? "";
+
+            // Start deployment
+            deploymentInProgress = true;
+            currentStep = 2;
+            
+            var progressReporter = new Progress<DeploymentProgress>(p =>
+            {
+                progress = p;
+                InvokeAsync(StateHasChanged);
+            });
+
+            await DeploymentService.DeployVmAsync(deploymentRequest, progressReporter);
+        }
+        catch (Exception ex)
+        {
+            await MessageService.Error($"Deployment error: {ex.Message}");
+            deploymentInProgress = false;
+        }
+    }
+
+    private void ResetForm()
+    {
+        deploymentRequest = new VmDeploymentRequest();
+        progress = new DeploymentProgress();
+        selectedTemplateUuid = string.Empty;
+        selectedNetworkUuid = string.Empty;
+        selectedTemplate = null;
+        currentStep = 0;
+        deploymentInProgress = false;
+    }
+}
