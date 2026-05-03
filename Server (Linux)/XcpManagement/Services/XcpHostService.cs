@@ -90,8 +90,9 @@ public class XcpHostService : IXcpHostService
         return true;
     }
 
-    public async Task<bool> TestConnectionAsync(string hostUrl, string username, string password)
+    public async Task<bool> TestConnectionAsync(string hostUrl, string username, string passwordHash)
     {
+        var password = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(passwordHash));
         return await _xenApiService.TestConnection(hostUrl, username, password);
     }
 
