@@ -24,7 +24,7 @@
             Placeholder="Filter by power state"
             Style="width: 200px;"
             AllowClear="true"
-            OnSelectedItemChanged="@((string v) => ApplyFilters())" />
+            OnChange="@((string v) => { selectedPowerState = v; ApplyFilters(); })" />
 
     <Select TItem="string"
             TItemValue="string"
@@ -33,7 +33,7 @@
             Placeholder="Filter by host"
             Style="width: 200px;"
             AllowClear="true"
-            OnSelectedItemChanged="@((string v) => ApplyFilters())" />
+            OnChange="@((string v) => { selectedHost = v; ApplyFilters(); })" />
 
     <span style="line-height: 32px; color: #888;">@filteredVms.Count of @allVms.Count VMs</span>
 </div>
