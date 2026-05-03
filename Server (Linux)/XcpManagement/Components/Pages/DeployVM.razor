@@ -64,6 +64,7 @@ else
         {
             <Title Level="3">Step 1: Select Template</Title>
 
+            <Form>
             <FormItem Label="XCP-ng Host">
                 <Select TItem="string" 
                         TItemValue="string"
@@ -118,7 +119,7 @@ else
                         Disabled="string.IsNullOrEmpty(selectedTemplateUuid)">
                     Next: Configure <Icon Type="arrow-right" />
                 </Button>
-            }
+            </Form>
         }
 
         @* Step 2: Resource Configuration *@
@@ -126,6 +127,7 @@ else
         {
             <Title Level="3">Step 2: Configure Resources</Title>
 
+            <Form>
             <FormItem Label="VM Name">
                 <Input @bind-Value="deploymentRequest.VmName" 
                        Placeholder="e.g., WEB-SERVER-01" 
@@ -202,6 +204,7 @@ else
                     </Button>
                 </SpaceItem>
             </Space>
+            </Form>
         }
 
         @* Step 3: Review & Deploy *@
