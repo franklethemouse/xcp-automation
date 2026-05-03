@@ -59,12 +59,19 @@ public class XenApiService : IXenApiService
         try
         {
             var doc = XDocument.Parse(xmlResponse);
-            var value = doc.Descendants("member")
+            var valueElement = doc.Descendants("member")
                 .FirstOrDefault(m => m.Element("name")?.Value == "Value")
-                ?.Element("value")
-                ?.Element("string")
-                ?.Value;
-            return value ?? string.Empty;
+                ?.Element("value");
+
+            if (valueElement == null) return string.Empty;
+
+            // Try <value><string>...</string></value> first
+            var stringValue = valueElement.Element("string")?.Value;
+            if (!string.IsNullOrEmpty(stringValue)) return stringValue;
+
+            // Fall back to bare <value>...</value> (e.g. OpaqueRef values)
+            var bareValue = valueElement.Nodes().OfType<System.Xml.Linq.XText>().FirstOrDefault()?.Value;
+            return bareValue ?? string.Empty;
         }
         catch
         {
