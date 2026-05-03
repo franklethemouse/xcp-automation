@@ -6,7 +6,7 @@
 
 <PageHeader Title="Deploy Virtual Machine">
     <PageHeaderExtra>
-        <Button OnClick="() => Navigation.NavigateTo(\"/vms\")">
+        <Button OnClick="@(() => Navigation.NavigateTo("/vms"))">
             <Icon Type="arrow-left" /> Back to VMs
         </Button>
     </PageHeaderExtra>
@@ -36,7 +36,7 @@
                 <Alert Type="@AlertType.Error" 
                        Message="Deployment Failed"
                        Description="@progress.ErrorMessage"
-                       ShowIcon />
+                       ShowIcon="true" />
                 
                 <div style="text-align: center; margin-top: 16px;">
                     <Button Type="@ButtonType.Primary" OnClick="ResetForm">Try Again</Button>
@@ -50,7 +50,7 @@
                     <Extra>
                         <Space>
                             <SpaceItem>
-                                <Button Type="@ButtonType.Primary" OnClick="() => Navigation.NavigateTo(\"/vms\")">
+                                <Button Type="@ButtonType.Primary" OnClick="@(() => Navigation.NavigateTo("/vms"))">
                                     View All VMs
                                 </Button>
                             </SpaceItem>
@@ -108,7 +108,7 @@ else
                                 Placeholder="Select a template"
                                 OnSelectedItemChanged="OnTemplateSelected"
                                 Style="width: 100%;"
-                                ShowSearch>
+                                ShowSearch="true">
                             @foreach (var template in templates)
                             {
                                 <SelectOption Value="@template.Uuid" Label="@template.NameLabel">
@@ -126,7 +126,7 @@ else
 
                     @if (selectedTemplate != null)
                     {
-                        <Alert Type="@AlertType.Info" ShowIcon Style="margin-bottom: 16px;">
+                        <Alert Type="@AlertType.Info" ShowIcon="true" Style="margin-bottom: 16px;">
                             <MessageTemplate>
                                 <strong>Template Details:</strong><br/>
                                 CPUs: @selectedTemplate.VcpusMax | 
@@ -138,7 +138,7 @@ else
 
                 <FormItem WrapperColOffset="6">
                     <Button Type="@ButtonType.Primary" 
-                            OnClick="() => currentStep = 1"
+                            OnClick="@(() => currentStep = 1)"
                             Disabled="string.IsNullOrEmpty(selectedTemplateUuid)">
                         Next: Configure <Icon Type="arrow-right" />
                     </Button>
@@ -168,7 +168,7 @@ else
                     <Text Type="secondary"> (Cores per CPU socket)</Text>
                 </FormItem>
 
-                <Alert Type="@AlertType.Info" ShowIcon Style="margin-bottom: 16px;">
+                <Alert Type="@AlertType.Info" ShowIcon="true" Style="margin-bottom: 16px;">
                     <MessageTemplate>
                         <strong>Total vCPUs:</strong> @(deploymentRequest.CpuCount * deploymentRequest.CoresPerSocket)<br/>
                         <small>Example: 4 CPUs × 2 Cores = 8 total vCPUs</small>
@@ -236,12 +236,12 @@ else
                 <FormItem WrapperColOffset="6">
                     <Space>
                         <SpaceItem>
-                            <Button OnClick="() => currentStep = 0">
+                            <Button OnClick="@(() => currentStep = 0)">
                                 <Icon Type="arrow-left" /> Back
                             </Button>
                         </SpaceItem>
                         <SpaceItem>
-                            <Button Type="@ButtonType.Primary" OnClick="() => currentStep = 2">
+                            <Button Type="@ButtonType.Primary" OnClick="@(() => currentStep = 2)">
                                 Next: Review <Icon Type="arrow-right" />
                             </Button>
                         </SpaceItem>
@@ -290,13 +290,13 @@ else
                 <Alert Type="@AlertType.Warning" 
                        Message="Ready to Deploy" 
                        Description="Please review the configuration above. Once you click Deploy, the VM creation process will begin."
-                       ShowIcon 
+                       ShowIcon="true"
                        Style="margin-top: 24px;" />
 
                 <FormItem WrapperColOffset="6" Style="margin-top: 24px;">
                     <Space>
                         <SpaceItem>
-                            <Button OnClick="() => currentStep = 1">
+                            <Button OnClick="@(() => currentStep = 1)">
                                 <Icon Type="arrow-left" /> Back
                             </Button>
                         </SpaceItem>
