@@ -11,16 +11,46 @@
     </PageHeaderExtra>
 </PageHeader>
 
-<Table TItem="VirtualMachine" DataSource="@vms" Loading="@loading">
-    <PropertyColumn Property="c => c.NameLabel" Title="Name" />
-    <PropertyColumn Property="c => c.HostName" Title="Host" />
-    <PropertyColumn Property="c => c.PowerState" Title="Power State">
+<div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+    <Input Placeholder="Search by name..."
+           Style="width: 220px;"
+           @bind-Value="searchName"
+           OnChange="ApplyFilters" />
+
+    <Select TItem="string"
+            TItemValue="string"
+            DataSource="@powerStateOptions"
+            @bind-Value="selectedPowerState"
+            Placeholder="Filter by power state"
+            Style="width: 200px;"
+            AllowClear="true"
+            OnSelectedItemChanged="_ => ApplyFilters()" />
+
+    <Select TItem="string"
+            TItemValue="string"
+            DataSource="@hostOptions"
+            @bind-Value="selectedHost"
+            Placeholder="Filter by host"
+            Style="width: 200px;"
+            AllowClear="true"
+            OnSelectedItemChanged="_ => ApplyFilters()" />
+
+    <span style="line-height: 32px; color: #888;">@filteredVms.Count of @allVms.Count VMs</span>
+</div>
+
+<Table TItem="VirtualMachine"
+       DataSource="@filteredVms"
+       Loading="@loading"
+       OnChange="OnTableChange">
+    <PropertyColumn Property="c => c.NameLabel" Title="Name" Sortable />
+    <PropertyColumn Property="c => c.HostName" Title="Host" Sortable />
+    <PropertyColumn Property="c => c.PowerState" Title="Power State" Sortable>
         <Tag Color="@GetPowerStateColor(context.PowerState)">
             @context.PowerState
         </Tag>
     </PropertyColumn>
-    <PropertyColumn Property="c => c.VcpusAtStartup" Title="vCPUs" />
-    <PropertyColumn Property="c => c.MemoryDynamic" Title="Memory">
+    <PropertyColumn Property="c => c.VcpusAtStartup" Title="vCPUs" Sortable />
+    <PropertyColumn Property="c => c.MemoryDynamic" Title="Memory" Sortable>
         @($"{context.MemoryDynamic / (1024.0 * 1024 * 1024):F1} GB")
     </PropertyColumn>
     <PropertyColumn Property="c => c.IpAddress" Title="IP Address" />
@@ -40,8 +70,16 @@
 </Table>
 
 @code {
-    private List<VirtualMachine> vms = new();
+    private List<VirtualMachine> allVms = new();
+    private List<VirtualMachine> filteredVms = new();
     private bool loading = true;
+
+    private string searchName = "";
+    private string? selectedPowerState;
+    private string? selectedHost;
+
+    private List<string> powerStateOptions = new() { "Running", "Halted", "Suspended", "Paused", "Unknown" };
+    private List<string> hostOptions = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -50,7 +88,32 @@
 
     private void LoadVms()
     {
-        vms = VmCache.GetAllVirtualMachines();
+        allVms = VmCache.GetAllVirtualMachines();
+        hostOptions = allVms.Select(v => v.HostName).Distinct().OrderBy(h => h).ToList();
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        var result = allVms.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(searchName))
+            result = result.Where(v => v.NameLabel.Contains(searchName, StringComparison.OrdinalIgnoreCase));
+
+        if (!string.IsNullOrWhiteSpace(selectedPowerState) &&
+            Enum.TryParse<VmPowerState>(selectedPowerState, out var ps))
+            result = result.Where(v => v.PowerState == ps);
+
+        if (!string.IsNullOrWhiteSpace(selectedHost))
+            result = result.Where(v => v.HostName == selectedHost);
+
+        filteredVms = result.ToList();
+        StateHasChanged();
+    }
+
+    private void OnTableChange(QueryModel<VirtualMachine> query)
+    {
+        // Sorting is handled by the Table component automatically
     }
 
     private async Task RefreshCache()
