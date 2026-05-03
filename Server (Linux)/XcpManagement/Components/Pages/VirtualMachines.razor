@@ -11,37 +11,36 @@
     </PageHeaderExtra>
 </PageHeader>
 
-<div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+<div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;">
     <Input Placeholder="Search by name..."
            Style="width: 220px;"
            @bind-Value="searchName"
-           OnChange="ApplyFilters" />
+           OnChange="_ => ApplyFilters()" />
 
-    <Select TItem="string"
-            TItemValue="string"
-            DataSource="@powerStateOptions"
-            @bind-Value="selectedPowerState"
-            Placeholder="Filter by power state"
-            Style="width: 200px;"
-            AllowClear="true"
-            OnChange="@((string v) => { selectedPowerState = v; ApplyFilters(); })" />
+    <select style="height: 32px; padding: 0 8px; border: 1px solid #d9d9d9; border-radius: 6px; min-width: 180px;"
+            @onchange="OnPowerStateChanged">
+        <option value="">All power states</option>
+        @foreach (var state in powerStateOptions)
+        {
+            <option value="@state">@state</option>
+        }
+    </select>
 
-    <Select TItem="string"
-            TItemValue="string"
-            DataSource="@hostOptions"
-            @bind-Value="selectedHost"
-            Placeholder="Filter by host"
-            Style="width: 200px;"
-            AllowClear="true"
-            OnChange="@((string v) => { selectedHost = v; ApplyFilters(); })" />
+    <select style="height: 32px; padding: 0 8px; border: 1px solid #d9d9d9; border-radius: 6px; min-width: 180px;"
+            @onchange="OnHostChanged">
+        <option value="">All hosts</option>
+        @foreach (var host in hostOptions)
+        {
+            <option value="@host">@host</option>
+        }
+    </select>
 
     <span style="line-height: 32px; color: #888;">@filteredVms.Count of @allVms.Count VMs</span>
 </div>
 
 <Table TItem="VirtualMachine"
        DataSource="@filteredVms"
-       Loading="@loading"
-       OnChange="OnTableChange">
+       Loading="@loading">
     <PropertyColumn Property="c => c.NameLabel" Title="Name" Sortable />
     <PropertyColumn Property="c => c.HostName" Title="Host" Sortable />
     <PropertyColumn Property="c => c.PowerState" Title="Power State" Sortable>
@@ -75,8 +74,8 @@
     private bool loading = true;
 
     private string searchName = "";
-    private string? selectedPowerState;
-    private string? selectedHost;
+    private string selectedPowerState = "";
+    private string selectedHost = "";
 
     private List<string> powerStateOptions = new() { "Running", "Halted", "Suspended", "Paused", "Unknown" };
     private List<string> hostOptions = new();
@@ -90,6 +89,18 @@
     {
         allVms = VmCache.GetAllVirtualMachines();
         hostOptions = allVms.Select(v => v.HostName).Distinct().OrderBy(h => h).ToList();
+        ApplyFilters();
+    }
+
+    private void OnPowerStateChanged(ChangeEventArgs e)
+    {
+        selectedPowerState = e.Value?.ToString() ?? "";
+        ApplyFilters();
+    }
+
+    private void OnHostChanged(ChangeEventArgs e)
+    {
+        selectedHost = e.Value?.ToString() ?? "";
         ApplyFilters();
     }
 
@@ -109,11 +120,6 @@
 
         filteredVms = result.ToList();
         StateHasChanged();
-    }
-
-    private void OnTableChange(AntDesign.TableModels.QueryModel<VirtualMachine> query)
-    {
-        // Sorting is handled by the Table component automatically
     }
 
     private async Task RefreshCache()
