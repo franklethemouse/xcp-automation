@@ -23,13 +23,13 @@ public class XenApiService : IXenApiService
     private async Task<string> CallXenApiAsync(string hostUrl, string method, params object[] parameters)
     {
         var xml = BuildXmlRpcRequest(method, parameters);
-        
+
         var httpClient = _httpClientFactory.CreateClient("XenAPI");
         httpClient.Timeout = TimeSpan.FromSeconds(30);
-        
+
         var content = new StringContent(xml, Encoding.UTF8, "text/xml");
         var response = await httpClient.PostAsync(hostUrl, content);
-        
+
         return await response.Content.ReadAsStringAsync();
     }
 
@@ -40,20 +40,21 @@ public class XenApiService : IXenApiService
         xml.AppendLine("<methodCall>");
         xml.AppendLine($"  <methodName>{method}</methodName>");
         xml.AppendLine("  <params>");
-        
+
         foreach (var param in parameters)
         {
             xml.AppendLine("    <param>");
             xml.AppendLine($"      <value><string>{param}</string></value>");
             xml.AppendLine("    </param>");
         }
-        
+
         xml.AppendLine("  </params>");
         xml.AppendLine("</methodCall>");
-        
+
         return xml.ToString();
     }
 
+    // Extracts a single string value from the top-level "Value" member
     private string ExtractStringValue(string xmlResponse)
     {
         try
@@ -65,12 +66,10 @@ public class XenApiService : IXenApiService
 
             if (valueElement == null) return string.Empty;
 
-            // Try <value><string>...</string></value> first
             var stringValue = valueElement.Element("string")?.Value;
             if (!string.IsNullOrEmpty(stringValue)) return stringValue;
 
-            // Fall back to bare <value>...</value> (e.g. OpaqueRef values)
-            var bareValue = valueElement.Nodes().OfType<System.Xml.Linq.XText>().FirstOrDefault()?.Value;
+            var bareValue = valueElement.Nodes().OfType<XText>().FirstOrDefault()?.Value;
             return bareValue ?? string.Empty;
         }
         catch
@@ -79,25 +78,64 @@ public class XenApiService : IXenApiService
         }
     }
 
-    private List<string> ExtractArrayValue(string xmlResponse)
+    // Extracts a flat key/value dictionary from a single struct XElement
+    private Dictionary<string, string> ParseStruct(XElement structElement)
     {
+        var result = new Dictionary<string, string>();
+        foreach (var member in structElement.Elements("member"))
+        {
+            var name = member.Element("name")?.Value;
+            if (name == null) continue;
+
+            var valueElement = member.Element("value");
+            if (valueElement == null) continue;
+
+            var typedValue = valueElement.Elements().FirstOrDefault()?.Value;
+            if (typedValue != null)
+            {
+                result[name] = typedValue;
+                continue;
+            }
+
+            var bareValue = valueElement.Nodes().OfType<XText>().FirstOrDefault()?.Value;
+            if (bareValue != null)
+                result[name] = bareValue;
+        }
+        return result;
+    }
+
+    // Extracts a dictionary of VM ref -> VM record struct from VM.get_all_records response
+    private Dictionary<string, Dictionary<string, string>> ExtractAllRecords(string xmlResponse)
+    {
+        var result = new Dictionary<string, Dictionary<string, string>>();
         try
         {
             var doc = XDocument.Parse(xmlResponse);
-            var values = doc.Descendants("member")
+
+            // Find the top-level Value struct which contains one member per VM ref
+            var topStruct = doc.Descendants("member")
                 .FirstOrDefault(m => m.Element("name")?.Value == "Value")
                 ?.Element("value")
-                ?.Element("array")
-                ?.Element("data")
-                ?.Elements("value")
-                .Select(v => v.Element("string")?.Value ?? string.Empty)
-                .ToList();
-            return values ?? new List<string>();
+                ?.Element("struct");
+
+            if (topStruct == null) return result;
+
+            foreach (var member in topStruct.Elements("member"))
+            {
+                var vmRef = member.Element("name")?.Value;
+                if (vmRef == null) continue;
+
+                var vmStruct = member.Element("value")?.Element("struct");
+                if (vmStruct == null) continue;
+
+                result[vmRef] = ParseStruct(vmStruct);
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            return new List<string>();
+            _logger.LogError(ex, "Failed to parse VM.get_all_records response");
         }
+        return result;
     }
 
     private Dictionary<string, string> ExtractStructValue(string xmlResponse)
@@ -110,34 +148,8 @@ public class XenApiService : IXenApiService
                 ?.Element("value")
                 ?.Element("struct");
 
-            var result = new Dictionary<string, string>();
-            if (structElement == null) return result;
-
-            foreach (var member in structElement.Elements("member"))
-            {
-                var name = member.Element("name")?.Value;
-                if (name == null) continue;
-
-                var valueElement = member.Element("value");
-                if (valueElement == null) continue;
-
-                // Try typed child element first (string, boolean, int, etc.)
-                var typedValue = valueElement.Elements().FirstOrDefault()?.Value;
-                if (typedValue != null)
-                {
-                    result[name] = typedValue;
-                    continue;
-                }
-
-                // Fall back to bare text value
-                var bareValue = valueElement.Nodes().OfType<System.Xml.Linq.XText>().FirstOrDefault()?.Value;
-                if (bareValue != null)
-                {
-                    result[name] = bareValue;
-                }
-            }
-
-            return result;
+            if (structElement == null) return new Dictionary<string, string>();
+            return ParseStruct(structElement);
         }
         catch
         {
@@ -150,13 +162,10 @@ public class XenApiService : IXenApiService
         try
         {
             _logger.LogInformation("Testing connection to {HostUrl}", hostUrl);
-            
-            var response = await CallXenApiAsync(hostUrl, "session.login_with_password", username, password, "1.0", "XCP-Management");
-            _logger.LogInformation("Raw XenAPI response: {Response}", response);
 
+            var response = await CallXenApiAsync(hostUrl, "session.login_with_password", username, password, "1.0", "XCP-Management");
             var sessionRef = ExtractStringValue(response);
-            _logger.LogInformation("Extracted session ref: '{SessionRef}'", sessionRef);
-            
+
             if (string.IsNullOrEmpty(sessionRef))
                 return false;
 
@@ -175,7 +184,7 @@ public class XenApiService : IXenApiService
         try
         {
             _logger.LogInformation("Getting VMs for host {HostId}", hostId);
-            
+
             var host = await _context.XcpHosts.FindAsync(hostId);
             if (host == null)
             {
@@ -183,8 +192,8 @@ public class XenApiService : IXenApiService
                 return new List<VirtualMachine>();
             }
 
-            var password = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(host.PasswordHash));
-            
+            var password = Encoding.UTF8.GetString(Convert.FromBase64String(host.PasswordHash));
+
             var loginResponse = await CallXenApiAsync(host.HostUrl, "session.login_with_password", host.Username, password, "1.0", "XCP-Management");
             var sessionRef = ExtractStringValue(loginResponse);
 
@@ -194,51 +203,43 @@ public class XenApiService : IXenApiService
                 return new List<VirtualMachine>();
             }
 
-            var vmListResponse = await CallXenApiAsync(host.HostUrl, "VM.get_all", sessionRef);
-            var vmRefs = ExtractArrayValue(vmListResponse);
+            // Single call to get all VM records at once
+            var allRecordsResponse = await CallXenApiAsync(host.HostUrl, "VM.get_all_records", sessionRef);
+            var allRecords = ExtractAllRecords(allRecordsResponse);
 
             var vms = new List<VirtualMachine>();
 
-            foreach (var vmRef in vmRefs)
+            foreach (var (vmRef, vm) in allRecords)
             {
-                try
+                // Filter out control domain, templates, and snapshots
+                if (vm.GetValueOrDefault("is_control_domain", "false") == "true" ||
+                    vm.GetValueOrDefault("is_a_template", "false") == "true" ||
+                    vm.GetValueOrDefault("is_a_snapshot", "false") == "true")
+                    continue;
+
+                var powerStateStr = vm.GetValueOrDefault("power_state", "Unknown").ToLower();
+                var powerState = powerStateStr switch
                 {
-                    var vmRecordResponse = await CallXenApiAsync(host.HostUrl, "VM.get_record", sessionRef, vmRef);
-                    var vm = ExtractStructValue(vmRecordResponse);
+                    "running" => VmPowerState.Running,
+                    "halted" => VmPowerState.Halted,
+                    "suspended" => VmPowerState.Suspended,
+                    "paused" => VmPowerState.Paused,
+                    _ => VmPowerState.Unknown
+                };
 
-                    if (vm.GetValueOrDefault("is_control_domain", "false") == "true" ||
-                        vm.GetValueOrDefault("is_a_template", "false") == "true" ||
-                        vm.GetValueOrDefault("is_a_snapshot", "false") == "true")
-                        continue;
-
-                    var powerStateStr = vm.GetValueOrDefault("power_state", "Unknown").ToLower();
-                    var powerState = powerStateStr switch
-                    {
-                        "running" => VmPowerState.Running,
-                        "halted" => VmPowerState.Halted,
-                        "suspended" => VmPowerState.Suspended,
-                        "paused" => VmPowerState.Paused,
-                        _ => VmPowerState.Unknown
-                    };
-
-                    vms.Add(new VirtualMachine
-                    {
-                        Uuid = vm.GetValueOrDefault("uuid", ""),
-                        NameLabel = vm.GetValueOrDefault("name_label", ""),
-                        NameDescription = vm.GetValueOrDefault("name_description", ""),
-                        HostId = hostId,
-                        HostName = host.HostName,
-                        PowerState = powerState,
-                        VcpusAtStartup = int.TryParse(vm.GetValueOrDefault("VCPUs_at_startup", "0"), out var vcpus) ? vcpus : 0,
-                        MemoryDynamic = long.TryParse(vm.GetValueOrDefault("memory_dynamic_max", "0"), out var memDyn) ? memDyn : 0,
-                        MemoryStatic = long.TryParse(vm.GetValueOrDefault("memory_static_max", "0"), out var memStat) ? memStat : 0,
-                        LastUpdated = DateTime.UtcNow
-                    });
-                }
-                catch (Exception vmEx)
+                vms.Add(new VirtualMachine
                 {
-                    _logger.LogWarning(vmEx, "Failed to get details for VM {VmRef}", vmRef);
-                }
+                    Uuid = vm.GetValueOrDefault("uuid", ""),
+                    NameLabel = vm.GetValueOrDefault("name_label", ""),
+                    NameDescription = vm.GetValueOrDefault("name_description", ""),
+                    HostId = hostId,
+                    HostName = host.HostName,
+                    PowerState = powerState,
+                    VcpusAtStartup = int.TryParse(vm.GetValueOrDefault("VCPUs_at_startup", "0"), out var vcpus) ? vcpus : 0,
+                    MemoryDynamic = long.TryParse(vm.GetValueOrDefault("memory_dynamic_max", "0"), out var memDyn) ? memDyn : 0,
+                    MemoryStatic = long.TryParse(vm.GetValueOrDefault("memory_static_max", "0"), out var memStat) ? memStat : 0,
+                    LastUpdated = DateTime.UtcNow
+                });
             }
 
             await CallXenApiAsync(host.HostUrl, "session.logout", sessionRef);
@@ -266,7 +267,7 @@ public class XenApiService : IXenApiService
             var host = await _context.XcpHosts.FindAsync(hostId);
             if (host == null) return false;
 
-            var password = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(host.PasswordHash));
+            var password = Encoding.UTF8.GetString(Convert.FromBase64String(host.PasswordHash));
 
             var loginResponse = await CallXenApiAsync(host.HostUrl, "session.login_with_password", host.Username, password, "1.0", "XCP-Management");
             var sessionRef = ExtractStringValue(loginResponse);

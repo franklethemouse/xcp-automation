@@ -43,23 +43,24 @@
     private List<VirtualMachine> vms = new();
     private bool loading = true;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        LoadVms();
+        await RefreshCache();
     }
 
     private void LoadVms()
     {
-        loading = true;
         vms = VmCache.GetAllVirtualMachines();
-        loading = false;
     }
 
     private async Task RefreshCache()
     {
         loading = true;
+        StateHasChanged();
         await VmCache.RefreshCacheAsync();
         LoadVms();
+        loading = false;
+        StateHasChanged();
         await MessageService.Success("Cache refreshed");
     }
 
