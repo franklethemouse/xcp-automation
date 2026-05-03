@@ -29,7 +29,10 @@
     </ActionColumn>
 </Table>
 
-<Modal Title="Add XCP-ng Host" @bind-Visible="addModalVisible" OnOk="AddHost" OnCancel="() => addModalVisible = false">
+<Modal Title="Add XCP-ng Host"
+       @bind-Visible="addModalVisible"
+       OnCancel="() => addModalVisible = false"
+       Footer="null">
     <div style="padding: 16px;">
         <div style="margin-bottom: 16px;">
             <div style="margin-bottom: 4px;"><strong>Host Name</strong></div>
@@ -47,6 +50,10 @@
             <div style="margin-bottom: 4px;"><strong>Password</strong></div>
             <InputPassword @bind-Value="@newHost.Password" />
         </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px;">
+            <Button OnClick="() => addModalVisible = false">Cancel</Button>
+            <Button Type="@ButtonType.Primary" Loading="@addingHost" OnClick="AddHost">OK</Button>
+        </div>
     </div>
 </Modal>
 
@@ -54,6 +61,7 @@
     private List<Data.XcpHost> hosts = new();
     private bool loading = true;
     private bool addModalVisible;
+    private bool addingHost;
     private NewHostModel newHost = new();
 
     protected override async Task OnInitializedAsync()
@@ -77,6 +85,18 @@
 
     private async Task AddHost()
     {
+        if (string.IsNullOrWhiteSpace(newHost.HostName) ||
+            string.IsNullOrWhiteSpace(newHost.HostUrl) ||
+            string.IsNullOrWhiteSpace(newHost.Username) ||
+            string.IsNullOrWhiteSpace(newHost.Password))
+        {
+            await MessageService.Error("All fields are required.");
+            return;
+        }
+
+        addingHost = true;
+        StateHasChanged();
+
         try
         {
             await HostService.AddHostAsync(newHost.HostName, newHost.HostUrl, newHost.Username, newHost.Password);
@@ -87,6 +107,11 @@
         catch (Exception ex)
         {
             await MessageService.Error($"Failed to add host: {ex.Message}");
+        }
+        finally
+        {
+            addingHost = false;
+            StateHasChanged();
         }
     }
 
