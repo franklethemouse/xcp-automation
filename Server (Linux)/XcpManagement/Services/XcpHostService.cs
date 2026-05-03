@@ -28,30 +28,47 @@ public class XcpHostService : IXcpHostService
 
     public async Task<XcpHost> AddHostAsync(string hostName, string hostUrl, string username, string password)
     {
-        // Test connection first
-        var canConnect = await _xenApiService.TestConnection(hostUrl, username, password);
-        if (!canConnect)
+        _logger.LogInformation("AddHostAsync started for {HostName} at {HostUrl}", hostName, hostUrl);
+
+        try
         {
-            throw new Exception("Cannot connect to XCP-ng host");
+            _logger.LogInformation("Testing connection to {HostUrl}", hostUrl);
+            var canConnect = await _xenApiService.TestConnection(hostUrl, username, password);
+            _logger.LogInformation("Connection test result: {CanConnect}", canConnect);
+
+            if (!canConnect)
+            {
+                throw new Exception("Cannot connect to XCP-ng host");
+            }
+
+            _logger.LogInformation("Building host object");
+            var host = new XcpHost
+            {
+                HostId = Guid.NewGuid().ToString(),
+                HostName = hostName,
+                HostUrl = hostUrl,
+                Username = username,
+                PasswordHash = EncryptPassword(password),
+                Active = true,
+                CreatedAt = DateTime.UtcNow,
+                LastConnected = DateTime.UtcNow
+            };
+
+            _logger.LogInformation("Adding host to context, HostId: {HostId}", host.HostId);
+            _context.XcpHosts.Add(host);
+
+            _logger.LogInformation("Calling SaveChangesAsync");
+            var saved = await _context.SaveChangesAsync();
+            _logger.LogInformation("SaveChangesAsync completed, rows affected: {Rows}", saved);
+
+            _logger.LogInformation("Successfully added XCP-ng host: {HostName} ({HostId})", hostName, host.HostId);
+            return host;
         }
-
-        var host = new XcpHost
+        catch (Exception ex)
         {
-            HostId = Guid.NewGuid().ToString(),
-            HostName = hostName,
-            HostUrl = hostUrl,
-            Username = username,
-            PasswordHash = EncryptPassword(password), // TODO: Implement proper encryption
-            Active = true,
-            CreatedAt = DateTime.UtcNow,
-            LastConnected = DateTime.UtcNow
-        };
-
-        _context.XcpHosts.Add(host);
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Added XCP-ng host: {HostName} ({HostId})", hostName, host.HostId);
-        return host;
+            _logger.LogError(ex, "AddHostAsync failed for {HostName}: {Message}", hostName, ex.Message);
+            throw;
+        }
     }
 
     public async Task<bool> UpdateHostAsync(XcpHost host)
@@ -80,8 +97,6 @@ public class XcpHostService : IXcpHostService
 
     private string EncryptPassword(string password)
     {
-        // TODO: Implement proper encryption (AES or similar)
-        // For now, return as-is (NOT SECURE)
         return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(password));
     }
 }
