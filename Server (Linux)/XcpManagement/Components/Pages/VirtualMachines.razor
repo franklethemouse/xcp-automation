@@ -35,15 +35,21 @@
         }
     </select>
 
+    <select style="height: 32px; padding: 0 8px; border: 1px solid #d9d9d9; border-radius: 6px;"
+            @onchange="OnPageSizeChanged">
+        <option value="10">10 per page</option>
+        <option value="20" selected>20 per page</option>
+        <option value="50">50 per page</option>
+        <option value="100">100 per page</option>
+    </select>
+
     <span style="line-height: 32px; color: #888;">@filteredVms.Count of @allVms.Count VMs</span>
 </div>
 
 <Table TItem="VirtualMachine"
        DataSource="@filteredVms"
        Loading="@loading"
-       PageSize="20"
-       ShowSizeChanger="true"
-       PageSizeOptions="@(new int[] { 10, 20, 50, 100 })">
+       PageSize="@pageSize">
     <PropertyColumn Property="c => c.NameLabel" Title="Name" Sortable />
     <PropertyColumn Property="c => c.HostName" Title="Host" Sortable />
     <PropertyColumn Property="c => c.PowerState" Title="Power State" Sortable>
@@ -79,6 +85,7 @@
     private string searchName = "";
     private string selectedPowerState = "";
     private string selectedHost = "";
+    private int pageSize = 20;
 
     private List<string> powerStateOptions = new() { "Running", "Halted", "Suspended", "Paused", "Unknown" };
     private List<string> hostOptions = new();
@@ -93,6 +100,15 @@
         allVms = VmCache.GetAllVirtualMachines();
         hostOptions = allVms.Select(v => v.HostName).Distinct().OrderBy(h => h).ToList();
         ApplyFilters();
+    }
+
+    private void OnPageSizeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var size))
+        {
+            pageSize = size;
+            StateHasChanged();
+        }
     }
 
     private void OnPowerStateChanged(ChangeEventArgs e)
