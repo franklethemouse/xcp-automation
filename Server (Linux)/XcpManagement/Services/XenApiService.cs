@@ -54,7 +54,6 @@ public class XenApiService : IXenApiService
         return xml.ToString();
     }
 
-    // Extracts a single string value from the top-level "Value" member
     private string ExtractStringValue(string xmlResponse)
     {
         try
@@ -78,7 +77,7 @@ public class XenApiService : IXenApiService
         }
     }
 
-    // Extracts a flat key/value dictionary from a single struct XElement
+    // Extracts a flat key/value dictionary from a struct XElement
     private Dictionary<string, string> ParseStruct(XElement structElement)
     {
         var result = new Dictionary<string, string>();
@@ -90,13 +89,15 @@ public class XenApiService : IXenApiService
             var valueElement = member.Element("value");
             if (valueElement == null) continue;
 
-            var typedValue = valueElement.Elements().FirstOrDefault()?.Value;
-            if (typedValue != null)
+            // Try typed child element first (string, boolean, int, i4, double etc.)
+            var childElement = valueElement.Elements().FirstOrDefault();
+            if (childElement != null)
             {
-                result[name] = typedValue;
+                result[name] = childElement.Value;
                 continue;
             }
 
+            // Fall back to bare text value (e.g. OpaqueRef)
             var bareValue = valueElement.Nodes().OfType<XText>().FirstOrDefault()?.Value;
             if (bareValue != null)
                 result[name] = bareValue;
@@ -104,7 +105,7 @@ public class XenApiService : IXenApiService
         return result;
     }
 
-    // Extracts a dictionary of VM ref -> VM record struct from VM.get_all_records response
+    // Parses VM.get_all_records response: returns dict of vmRef -> field dict
     private Dictionary<string, Dictionary<string, string>> ExtractAllRecords(string xmlResponse)
     {
         var result = new Dictionary<string, Dictionary<string, string>>();
@@ -112,7 +113,6 @@ public class XenApiService : IXenApiService
         {
             var doc = XDocument.Parse(xmlResponse);
 
-            // Find the top-level Value struct which contains one member per VM ref
             var topStruct = doc.Descendants("member")
                 .FirstOrDefault(m => m.Element("name")?.Value == "Value")
                 ?.Element("value")
@@ -155,6 +155,13 @@ public class XenApiService : IXenApiService
         {
             return new Dictionary<string, string>();
         }
+    }
+
+    // Checks if a boolean field is truthy - handles "true", "1", "True" etc.
+    private bool IsTruthy(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return false;
+        return value == "1" || value.Equals("true", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<bool> TestConnection(string hostUrl, string username, string password)
@@ -203,18 +210,27 @@ public class XenApiService : IXenApiService
                 return new List<VirtualMachine>();
             }
 
-            // Single call to get all VM records at once
+            // Single call to get all VM records
             var allRecordsResponse = await CallXenApiAsync(host.HostUrl, "VM.get_all_records", sessionRef);
             var allRecords = ExtractAllRecords(allRecordsResponse);
+
+            // Log sample record fields to verify parsing
+            var sample = allRecords.FirstOrDefault();
+            if (sample.Value != null)
+            {
+                var flags = new[] { "is_control_domain", "is_a_template", "is_a_snapshot", "name_label", "power_state" };
+                var fieldLog = string.Join(", ", flags.Select(f => f + "=" + sample.Value.GetValueOrDefault(f, "(missing)")));
+                _logger.LogInformation("Sample VM record fields: {Fields}", fieldLog);
+            }
 
             var vms = new List<VirtualMachine>();
 
             foreach (var (vmRef, vm) in allRecords)
             {
                 // Filter out control domain, templates, and snapshots
-                if (vm.GetValueOrDefault("is_control_domain", "false") == "true" ||
-                    vm.GetValueOrDefault("is_a_template", "false") == "true" ||
-                    vm.GetValueOrDefault("is_a_snapshot", "false") == "true")
+                if (IsTruthy(vm.GetValueOrDefault("is_control_domain")) ||
+                    IsTruthy(vm.GetValueOrDefault("is_a_template")) ||
+                    IsTruthy(vm.GetValueOrDefault("is_a_snapshot")))
                     continue;
 
                 var powerStateStr = vm.GetValueOrDefault("power_state", "Unknown").ToLower();
