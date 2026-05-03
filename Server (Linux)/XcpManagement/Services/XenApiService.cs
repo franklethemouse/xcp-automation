@@ -116,10 +116,24 @@ public class XenApiService : IXenApiService
             foreach (var member in structElement.Elements("member"))
             {
                 var name = member.Element("name")?.Value;
-                var value = member.Element("value")?.Descendants().FirstOrDefault()?.Value;
-                if (name != null && value != null)
+                if (name == null) continue;
+
+                var valueElement = member.Element("value");
+                if (valueElement == null) continue;
+
+                // Try typed child element first (string, boolean, int, etc.)
+                var typedValue = valueElement.Elements().FirstOrDefault()?.Value;
+                if (typedValue != null)
                 {
-                    result[name] = value;
+                    result[name] = typedValue;
+                    continue;
+                }
+
+                // Fall back to bare text value
+                var bareValue = valueElement.Nodes().OfType<System.Xml.Linq.XText>().FirstOrDefault()?.Value;
+                if (bareValue != null)
+                {
+                    result[name] = bareValue;
                 }
             }
 
