@@ -40,7 +40,10 @@
 
 <Table TItem="VirtualMachine"
        DataSource="@filteredVms"
-       Loading="@loading">
+       Loading="@loading"
+       PageSize="20"
+       ShowSizeChanger="true"
+       PageSizeOptions="@(new int[] { 10, 20, 50, 100 })">
     <PropertyColumn Property="c => c.NameLabel" Title="Name" Sortable />
     <PropertyColumn Property="c => c.HostName" Title="Host" Sortable />
     <PropertyColumn Property="c => c.PowerState" Title="Power State" Sortable>
