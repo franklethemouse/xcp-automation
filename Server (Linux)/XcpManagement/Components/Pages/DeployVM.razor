@@ -21,47 +21,45 @@
             <Spin Size="large" Tip="Loading hosts..." />
         </div>
     }
-    else if (!hosts.Any())
-    {
-        <Alert Type="@AlertType.Warning" Message="No XCP-ng hosts configured" Description="Please add a host in the XCP Hosts page first." />
-    }
     else
     {
-        <Form Model="@templateSelection" LabelColSpan="6" WrapperColSpan="18">
-            
-            <FormItem Label="XCP-ng Host">
-                <p>Found @hosts.Count host(s)</p>
-                <Select TItem="string" 
-                        TItemValue="string"
-                        @bind-Value="@templateSelection.HostId" 
-                        Placeholder="Select host"
-                        Style="width: 100%;">
-                    @foreach (var host in hosts)
-                    {
-                        <SelectOption TItem="string" TItemValue="string" 
-                                      Value="@host.HostId" 
-                                      Label="@host.HostName" />
-                    }
-                </Select>
-            </FormItem>
+        <p>Found @hosts.Count host(s)</p>
+        
+        <div style="margin-bottom: 24px;">
+            <strong>Select XCP-ng Host:</strong>
+            <Select TItem="string" 
+                    TItemValue="string"
+                    Value="@selectedHostId"
+                    OnSelectedItemChanged="HandleHostSelected"
+                    Placeholder="Select host"
+                    Style="width: 400px; margin-top: 8px;">
+                @foreach (var host in hosts)
+                {
+                    <SelectOption TItem="string" TItemValue="string" 
+                                  Value="@host.HostId" 
+                                  Label="@host.HostName" />
+                }
+            </Select>
+        </div>
 
-        <FormItem WrapperColOffset="6">
-            <Button Type="@ButtonType.Primary" 
-                    OnClick="LoadTemplatesClick" 
-                    Disabled="@string.IsNullOrEmpty(templateSelection.HostId)"
-                    Loading="@loadingTemplates">
-                Load Templates
-            </Button>
-        </FormItem>
+        <Button Type="@ButtonType.Primary" 
+                OnClick="LoadTemplatesClick" 
+                Disabled="@string.IsNullOrEmpty(selectedHostId)"
+                Loading="@loadingTemplates">
+            Load Templates
+        </Button>
 
         @if (templates.Any())
         {
-            <FormItem Label="Template">
+            <Divider />
+            
+            <div style="margin-bottom: 24px;">
+                <strong>Select Template:</strong>
                 <Select TItem="string" 
                         TItemValue="string"
-                        @bind-Value="@templateSelection.TemplateUuid" 
+                        @bind-Value="selectedTemplateUuid" 
                         Placeholder="Select a template"
-                        Style="width: 100%;">
+                        Style="width: 400px; margin-top: 8px;">
                     @foreach (var template in templates)
                     {
                         <SelectOption TItem="string" TItemValue="string" 
@@ -69,29 +67,13 @@
                                       Label="@template.NameLabel" />
                     }
                 </Select>
-            </FormItem>
+            </div>
 
-            @if (selectedTemplate != null)
-            {
-                <FormItem WrapperColOffset="6">
-                    <Alert Type="@AlertType.Info" Message="Template Details">
-                        <Description>
-                            <p><strong>CPUs:</strong> @selectedTemplate.VcpusMax</p>
-                            <p><strong>Memory:</strong> @((selectedTemplate.MemoryStaticMax / 1024 / 1024).ToString("N0")) MB</p>
-                        </Description>
-                    </Alert>
-                </FormItem>
-            }
-
-            <FormItem WrapperColOffset="6">
-                <Button Type="@ButtonType.Primary" 
-                        Disabled="@string.IsNullOrEmpty(templateSelection.TemplateUuid)">
-                    Next: Configure Resources <Icon Type="arrow-right" />
-                </Button>
-            </FormItem>
+            <Button Type="@ButtonType.Primary" 
+                    Disabled="@string.IsNullOrEmpty(selectedTemplateUuid)">
+                Next: Configure Resources <Icon Type="arrow-right" />
+            </Button>
         }
-
-    </Form>
     }
 </Card>
 
@@ -99,8 +81,8 @@
     private List<Data.XcpHost> hosts = new();
     private List<VmTemplate> templates = new();
     
-    private TemplateSelectionModel templateSelection = new();
-    private VmTemplate? selectedTemplate;
+    private string selectedHostId = string.Empty;
+    private string selectedTemplateUuid = string.Empty;
     
     private bool loadingHosts = true;
     private bool loadingTemplates;
@@ -114,7 +96,7 @@
             // Auto-select first host if only one
             if (hosts.Count == 1)
             {
-                templateSelection.HostId = hosts[0].HostId;
+                selectedHostId = hosts[0].HostId;
             }
         }
         finally
@@ -125,14 +107,14 @@
 
     private async Task LoadTemplatesClick()
     {
-        if (string.IsNullOrEmpty(templateSelection.HostId)) return;
+        if (string.IsNullOrEmpty(selectedHostId)) return;
 
         loadingTemplates = true;
         StateHasChanged();
 
         try
         {
-            templates = await DeploymentService.GetTemplatesAsync(templateSelection.HostId);
+            templates = await DeploymentService.GetTemplatesAsync(selectedHostId);
             await MessageService.Success($"Loaded {templates.Count} templates");
         }
         catch (Exception ex)
@@ -145,15 +127,13 @@
         }
     }
 
+    private void HandleHostSelected(string value)
+    {
+        selectedHostId = value;
+    }
+
     private void GoBackToVms()
     {
         Navigation.NavigateTo("/vms");
-    }
-
-    // Simple model for Step 1
-    public class TemplateSelectionModel
-    {
-        public string HostId { get; set; } = string.Empty;
-        public string TemplateUuid { get; set; } = string.Empty;
     }
 }
