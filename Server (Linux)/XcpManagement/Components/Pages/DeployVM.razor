@@ -15,6 +15,12 @@
 <Card Style="max-width: 1000px; margin: 0 auto;">
     <Title Level="3">Step 1: Select Template</Title>
 
+    <p>Debug: Loaded @hosts.Count host(s)</p>
+    @foreach (var host in hosts)
+    {
+        <p>Host: @host.HostId - @host.HostName</p>
+    }
+
     <Form Model="@formModel">
         <FormItem Label="XCP-ng Host">
             <Select TItem="string" 
