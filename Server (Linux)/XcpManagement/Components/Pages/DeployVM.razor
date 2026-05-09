@@ -19,7 +19,8 @@
         <label style="display: block; margin-bottom: 8px;"><strong>XCP-ng Host:</strong></label>
         <Select TItem="string" 
                 TItemValue="string"
-                @bind-Value="selectedHostId" 
+                Value="@selectedHostId"
+                OnSelectedItemChanged="OnHostSelected"
                 Placeholder="Select host"
                 Style="width: 400px;">
             @foreach (var host in hosts)
@@ -106,5 +107,11 @@
     private void GoBackToVms()
     {
         Navigation.NavigateTo("/vms");
+    }
+
+    private void OnHostSelected(string value)
+    {
+        selectedHostId = value;
+        StateHasChanged();
     }
 }
