@@ -15,24 +15,14 @@
 <Card Style="max-width: 1000px; margin: 0 auto;">
     <Title Level="3">Step 1: Select Template</Title>
 
-    <p>Debug: Loaded @hosts.Count host(s)</p>
-    @foreach (var host in hosts)
-    {
-        <p>Host: @host.HostId - @host.HostName</p>
-    }
-
     <Form Model="@formModel">
         <FormItem Label="XCP-ng Host">
-            <Select TItem="string" 
-                    TItemValue="string"
-                    @bind-Value="@formModel.HostId" 
-                    Placeholder="Select host"
-                    Style="width: 100%;">
+            <RadioGroup @bind-Value="@formModel.HostId">
                 @foreach (var host in hosts)
                 {
-                    <SelectOption TItem="string" TItemValue="string" Value="@host.HostId" Label="@host.HostName" />
+                    <Radio RadioButton Value="@host.HostId">@host.HostName</Radio>
                 }
-            </Select>
+            </RadioGroup>
         </FormItem>
 
         <FormItem>
@@ -52,16 +42,12 @@
         else if (templates.Any())
         {
             <FormItem Label="Template">
-                <Select TItem="string" 
-                        TItemValue="string"
-                        @bind-Value="@formModel.TemplateUuid" 
-                        Placeholder="Select a template"
-                        Style="width: 100%;">
+                <RadioGroup @bind-Value="@formModel.TemplateUuid">
                     @foreach (var template in templates)
                     {
-                        <SelectOption TItem="string" TItemValue="string" Value="@template.Uuid" Label="@template.NameLabel" />
+                        <Radio RadioButton Value="@template.Uuid">@template.NameLabel</Radio>
                     }
-                </Select>
+                </RadioGroup>
             </FormItem>
 
             <FormItem>
