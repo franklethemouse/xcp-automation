@@ -15,62 +15,63 @@
 <Card Style="max-width: 1000px; margin: 0 auto;">
     <Title Level="3">Step 1: Select Template</Title>
 
-    <div style="margin-bottom: 24px;">
-        <label style="display: block; margin-bottom: 8px;"><strong>XCP-ng Host:</strong></label>
-        <Select TItem="string" 
-                TItemValue="string"
-                Value="@selectedHostId"
-                OnSelectedItemChanged="OnHostSelected"
-                Placeholder="Select host"
-                Style="width: 400px;">
-            @foreach (var host in hosts)
-            {
-                <SelectOption TItem="string" TItemValue="string" Value="@host.HostId" Label="@host.HostName" />
-            }
-        </Select>
-    </div>
-
-    <Button Type="@ButtonType.Primary" OnClick="LoadTemplatesClick" Disabled="@string.IsNullOrEmpty(selectedHostId)">
-        Load Templates
-    </Button>
-
-    @if (loadingTemplates)
-    {
-        <div style="text-align: center; padding: 40px;">
-            <Spin Size="large" Tip="Loading templates..." />
-        </div>
-    }
-    else if (templates.Any())
-    {
-        <Divider />
-        
-        <div style="margin-bottom: 24px;">
-            <label style="display: block; margin-bottom: 8px;"><strong>Template:</strong></label>
+    <Form Model="@formModel">
+        <FormItem Label="XCP-ng Host">
             <Select TItem="string" 
                     TItemValue="string"
-                    @bind-Value="selectedTemplateUuid" 
-                    Placeholder="Select a template"
-                    Style="width: 400px;">
-                @foreach (var template in templates)
+                    @bind-Value="@formModel.HostId" 
+                    Placeholder="Select host"
+                    Style="width: 100%;">
+                @foreach (var host in hosts)
                 {
-                    <SelectOption TItem="string" TItemValue="string" Value="@template.Uuid" Label="@template.NameLabel" />
+                    <SelectOption TItem="string" TItemValue="string" Value="@host.HostId" Label="@host.HostName" />
                 }
             </Select>
-        </div>
+        </FormItem>
 
-        <Button Type="@ButtonType.Primary" Disabled="string.IsNullOrEmpty(selectedTemplateUuid)">
-            Next: Configure <Icon Type="arrow-right" />
-        </Button>
-    }
+        <FormItem>
+            <Button Type="@ButtonType.Primary" OnClick="LoadTemplatesClick" Disabled="@string.IsNullOrEmpty(formModel.HostId)">
+                Load Templates
+            </Button>
+        </FormItem>
+
+        @if (loadingTemplates)
+        {
+            <FormItem>
+                <div style="text-align: center; padding: 40px;">
+                    <Spin Size="large" Tip="Loading templates..." />
+                </div>
+            </FormItem>
+        }
+        else if (templates.Any())
+        {
+            <FormItem Label="Template">
+                <Select TItem="string" 
+                        TItemValue="string"
+                        @bind-Value="@formModel.TemplateUuid" 
+                        Placeholder="Select a template"
+                        Style="width: 100%;">
+                    @foreach (var template in templates)
+                    {
+                        <SelectOption TItem="string" TItemValue="string" Value="@template.Uuid" Label="@template.NameLabel" />
+                    }
+                </Select>
+            </FormItem>
+
+            <FormItem>
+                <Button Type="@ButtonType.Primary" Disabled="string.IsNullOrEmpty(formModel.TemplateUuid)">
+                    Next: Configure <Icon Type="arrow-right" />
+                </Button>
+            </FormItem>
+        }
+    </Form>
 </Card>
 
 @code {
     private List<Data.XcpHost> hosts = new();
     private List<VmTemplate> templates = new();
     
-    private string selectedHostId = string.Empty;
-    private string selectedTemplateUuid = string.Empty;
-    
+    private DeployFormModel formModel = new();
     private bool loadingTemplates;
 
     protected override async Task OnInitializedAsync()
@@ -79,20 +80,20 @@
         
         if (hosts.Count == 1)
         {
-            selectedHostId = hosts[0].HostId;
+            formModel.HostId = hosts[0].HostId;
         }
     }
 
     private async Task LoadTemplatesClick()
     {
-        if (string.IsNullOrEmpty(selectedHostId)) return;
+        if (string.IsNullOrEmpty(formModel.HostId)) return;
 
         loadingTemplates = true;
         StateHasChanged();
 
         try
         {
-            templates = await DeploymentService.GetTemplatesAsync(selectedHostId);
+            templates = await DeploymentService.GetTemplatesAsync(formModel.HostId);
         }
         catch (Exception ex)
         {
@@ -109,9 +110,9 @@
         Navigation.NavigateTo("/vms");
     }
 
-    private void OnHostSelected(string value)
+    public class DeployFormModel
     {
-        selectedHostId = value;
-        StateHasChanged();
+        public string HostId { get; set; } = string.Empty;
+        public string TemplateUuid { get; set; } = string.Empty;
     }
 }
