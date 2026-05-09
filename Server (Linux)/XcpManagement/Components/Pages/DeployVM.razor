@@ -83,11 +83,6 @@
     protected override async Task OnInitializedAsync()
     {
         hosts = await HostService.GetAllHostsAsync();
-        
-        if (hosts.Count == 1)
-        {
-            formModel.HostId = hosts[0].HostId;
-        }
     }
 
     private async Task LoadTemplatesClick()
