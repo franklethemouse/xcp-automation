@@ -26,6 +26,7 @@
         </FormItem>
 
         <FormItem>
+            <p>Selected Host ID: '@formModel.HostId'</p>
             <Button Type="@ButtonType.Primary" OnClick="LoadTemplatesClick" Disabled="@string.IsNullOrEmpty(formModel.HostId)">
                 Load Templates
             </Button>
