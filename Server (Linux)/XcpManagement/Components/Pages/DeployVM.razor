@@ -25,14 +25,12 @@
     {
         <p>Found @hosts.Count host(s)</p>
         
-        <div style="margin-bottom: 24px;">
-            <strong>Select XCP-ng Host:</strong>
+        <FormItem Label="XCP-ng Host">
             <Select TItem="string" 
                     TItemValue="string"
-                    Value="@selectedHostId"
-                    OnSelectedItemChanged="HandleHostSelected"
+                    @bind-Value="selectedHostId" 
                     Placeholder="Select host"
-                    Style="width: 400px; margin-top: 8px;">
+                    Style="width: 100%;">
                 @foreach (var host in hosts)
                 {
                     <SelectOption TItem="string" TItemValue="string" 
@@ -40,7 +38,7 @@
                                   Label="@host.HostName" />
                 }
             </Select>
-        </div>
+        </FormItem>
 
         <Button Type="@ButtonType.Primary" 
                 OnClick="LoadTemplatesClick" 
@@ -53,13 +51,12 @@
         {
             <Divider />
             
-            <div style="margin-bottom: 24px;">
-                <strong>Select Template:</strong>
+            <FormItem Label="Template">
                 <Select TItem="string" 
                         TItemValue="string"
                         @bind-Value="selectedTemplateUuid" 
                         Placeholder="Select a template"
-                        Style="width: 400px; margin-top: 8px;">
+                        Style="width: 100%;">
                     @foreach (var template in templates)
                     {
                         <SelectOption TItem="string" TItemValue="string" 
@@ -67,7 +64,7 @@
                                       Label="@template.NameLabel" />
                     }
                 </Select>
-            </div>
+            </FormItem>
 
             <Button Type="@ButtonType.Primary" 
                     Disabled="@string.IsNullOrEmpty(selectedTemplateUuid)">
@@ -125,11 +122,6 @@
         {
             loadingTemplates = false;
         }
-    }
-
-    private void HandleHostSelected(string value)
-    {
-        selectedHostId = value;
     }
 
     private void GoBackToVms()
