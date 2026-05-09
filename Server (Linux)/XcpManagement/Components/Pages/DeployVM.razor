@@ -15,18 +15,19 @@
 <Card Style="max-width: 1000px; margin: 0 auto;">
     <Title Level="3">Step 1: Select Template</Title>
 
-    <FormItem Label="XCP-ng Host">
+    <div style="margin-bottom: 24px;">
+        <label style="display: block; margin-bottom: 8px;"><strong>XCP-ng Host:</strong></label>
         <Select TItem="string" 
                 TItemValue="string"
                 @bind-Value="selectedHostId" 
                 Placeholder="Select host"
-                Style="width: 100%;">
+                Style="width: 400px;">
             @foreach (var host in hosts)
             {
                 <SelectOption TItem="string" TItemValue="string" Value="@host.HostId" Label="@host.HostName" />
             }
         </Select>
-    </FormItem>
+    </div>
 
     <Button Type="@ButtonType.Primary" OnClick="LoadTemplatesClick" Disabled="@string.IsNullOrEmpty(selectedHostId)">
         Load Templates
@@ -40,21 +41,23 @@
     }
     else if (templates.Any())
     {
-        <FormItem Label="Template" Style="margin-top: 16px;">
+        <Divider />
+        
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; margin-bottom: 8px;"><strong>Template:</strong></label>
             <Select TItem="string" 
                     TItemValue="string"
                     @bind-Value="selectedTemplateUuid" 
                     Placeholder="Select a template"
-                    Style="width: 100%;">
+                    Style="width: 400px;">
                 @foreach (var template in templates)
                 {
                     <SelectOption TItem="string" TItemValue="string" Value="@template.Uuid" Label="@template.NameLabel" />
                 }
             </Select>
-        </FormItem>
+        </div>
 
-        <Button Type="@ButtonType.Primary" 
-                Disabled="string.IsNullOrEmpty(selectedTemplateUuid)">
+        <Button Type="@ButtonType.Primary" Disabled="string.IsNullOrEmpty(selectedTemplateUuid)">
             Next: Configure <Icon Type="arrow-right" />
         </Button>
     }
