@@ -15,62 +15,48 @@
 <Card Style="max-width: 1000px; margin: 0 auto;">
     <Title Level="3">Step 1: Select Template</Title>
 
-    @if (loadingHosts)
+    <FormItem Label="XCP-ng Host">
+        <Select TItem="string" 
+                TItemValue="string"
+                @bind-Value="selectedHostId" 
+                Placeholder="Select host"
+                Style="width: 100%;">
+            @foreach (var host in hosts)
+            {
+                <SelectOption TItem="string" TItemValue="string" Value="@host.HostId" Label="@host.HostName" />
+            }
+        </Select>
+    </FormItem>
+
+    <Button Type="@ButtonType.Primary" OnClick="LoadTemplatesClick" Disabled="@string.IsNullOrEmpty(selectedHostId)">
+        Load Templates
+    </Button>
+
+    @if (loadingTemplates)
     {
         <div style="text-align: center; padding: 40px;">
-            <Spin Size="large" Tip="Loading hosts..." />
+            <Spin Size="large" Tip="Loading templates..." />
         </div>
     }
-    else
+    else if (templates.Any())
     {
-        <p>Found @hosts.Count host(s)</p>
-        
-        <FormItem Label="XCP-ng Host">
+        <FormItem Label="Template" Style="margin-top: 16px;">
             <Select TItem="string" 
                     TItemValue="string"
-                    @bind-Value="selectedHostId" 
-                    Placeholder="Select host"
+                    @bind-Value="selectedTemplateUuid" 
+                    Placeholder="Select a template"
                     Style="width: 100%;">
-                @foreach (var host in hosts)
+                @foreach (var template in templates)
                 {
-                    <SelectOption TItem="string" TItemValue="string" 
-                                  Value="@host.HostId" 
-                                  Label="@host.HostName" />
+                    <SelectOption TItem="string" TItemValue="string" Value="@template.Uuid" Label="@template.NameLabel" />
                 }
             </Select>
         </FormItem>
 
         <Button Type="@ButtonType.Primary" 
-                OnClick="LoadTemplatesClick" 
-                Disabled="@string.IsNullOrEmpty(selectedHostId)"
-                Loading="@loadingTemplates">
-            Load Templates
+                Disabled="string.IsNullOrEmpty(selectedTemplateUuid)">
+            Next: Configure <Icon Type="arrow-right" />
         </Button>
-
-        @if (templates.Any())
-        {
-            <Divider />
-            
-            <FormItem Label="Template">
-                <Select TItem="string" 
-                        TItemValue="string"
-                        @bind-Value="selectedTemplateUuid" 
-                        Placeholder="Select a template"
-                        Style="width: 100%;">
-                    @foreach (var template in templates)
-                    {
-                        <SelectOption TItem="string" TItemValue="string" 
-                                      Value="@template.Uuid" 
-                                      Label="@template.NameLabel" />
-                    }
-                </Select>
-            </FormItem>
-
-            <Button Type="@ButtonType.Primary" 
-                    Disabled="@string.IsNullOrEmpty(selectedTemplateUuid)">
-                Next: Configure Resources <Icon Type="arrow-right" />
-            </Button>
-        }
     }
 </Card>
 
@@ -81,24 +67,15 @@
     private string selectedHostId = string.Empty;
     private string selectedTemplateUuid = string.Empty;
     
-    private bool loadingHosts = true;
     private bool loadingTemplates;
 
     protected override async Task OnInitializedAsync()
     {
-        try
+        hosts = await HostService.GetAllHostsAsync();
+        
+        if (hosts.Count == 1)
         {
-            hosts = await HostService.GetAllHostsAsync();
-            
-            // Auto-select first host if only one
-            if (hosts.Count == 1)
-            {
-                selectedHostId = hosts[0].HostId;
-            }
-        }
-        finally
-        {
-            loadingHosts = false;
+            selectedHostId = hosts[0].HostId;
         }
     }
 
@@ -112,7 +89,6 @@
         try
         {
             templates = await DeploymentService.GetTemplatesAsync(selectedHostId);
-            await MessageService.Success($"Loaded {templates.Count} templates");
         }
         catch (Exception ex)
         {
